@@ -19,6 +19,16 @@ describe('file validation', () => {
   it('accepts exactly 5 MB', () => { expect(validateFile(new File([new Uint8Array(5242880)], 'limit.pdf', { type: 'application/pdf' }))).toBe('pdf') })
 })
 describe('private document service', () => {
+  it.each([
+    [new File(['x'], 'bad.svg', { type: 'image/svg+xml' }), 'PDF, JPEG or PNG'],
+    [new File(['x'], 'bad.txt', { type: 'application/pdf' }), 'PDF, JPEG or PNG'],
+    [new File([new Uint8Array(5242881)], 'large.pdf', { type: 'application/pdf' }), '5 MB'],
+    [new File(['x'], `${'a'.repeat(252)}.pdf`, { type: 'application/pdf' }), '255 characters'],
+  ])('rejects invalid upload %s before writing storage or metadata', async (file, error) => {
+    await expect(uploadDocument('club-a', 'user-a', 'other', file)).rejects.toThrow(error)
+    expect(mock.upload).not.toHaveBeenCalled()
+    expect(mock.insert).not.toHaveBeenCalled()
+  })
   it('uploads a unique club-scoped path and supplied metadata', async () => {
     await uploadDocument('club-a','user-a','other',new File(['pdf'], 'test.pdf', { type: 'application/pdf' }))
     expect(mock.upload).toHaveBeenCalledWith(expect.stringMatching(/^club-a\/[\da-f-]+\.pdf$/), expect.any(File), { contentType: 'application/pdf', upsert: false })

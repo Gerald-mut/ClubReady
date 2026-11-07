@@ -11,6 +11,7 @@ import { ClubContext } from '../contexts/club-state'
 import { ClubProvider } from '../contexts/ClubContext'
 import { useClub } from '../hooks/useClub'
 import type { Club, Evidence } from '../types/club'
+vi.mock('../components/members/Members', () => ({ default: () => <section aria-label="Members" /> }))
 const mock = vi.hoisted(() => ({ createClub: vi.fn(), updateClub: vi.fn(), loadMembership: vi.fn(), listDocuments: vi.fn(), uploadDocument: vi.fn(), deleteDocument: vi.fn(), documentUrl: vi.fn() }))
 vi.mock('../services/clubs', () => ({ createClub: mock.createClub, updateClub: mock.updateClub, loadMembership: mock.loadMembership }))
 vi.mock('../services/documents', () => ({ listDocuments: mock.listDocuments, uploadDocument: mock.uploadDocument, deleteDocument: mock.deleteDocument, documentUrl: mock.documentUrl }))

@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { inviteReturn } from '../../services/invite-return'
 import { backend, message } from '../../services/supabase'
 import { useAuth } from '../../hooks/useAuth'
 
@@ -8,13 +9,17 @@ const titles = { 'sign-in': 'Sign in', 'sign-up': 'Create your account', 'forgot
 export default function AuthPage({ mode }: { mode: Mode }) {
   const auth = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnTo = inviteReturn(location.search)
+  const destination = returnTo || '/club-profile'
+  const authQuery = returnTo ? `?next=${encodeURIComponent(returnTo)}` : ''
   const [error, setError] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('error_description') || new URLSearchParams(window.location.search).get('error_description') || '')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const submitting = useRef(false)
   if (auth.loading) return <p role="status">Restoring your session…</p>
   if (auth.recovery && mode !== 'reset-password') return <Navigate to="/reset-password" replace />
-  if (auth.session && !auth.recovery && (mode === 'sign-in' || mode === 'sign-up')) return <Navigate to="/club-profile" replace />
+  if (auth.session && !auth.recovery && (mode === 'sign-in' || mode === 'sign-up')) return <Navigate to={destination} replace />
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (submitting.current) return
@@ -28,11 +33,11 @@ export default function AuthPage({ mode }: { mode: Mode }) {
       if (mode === 'sign-in') {
         const result = await client.auth.signInWithPassword({ email, password })
         if (result.error) throw result.error
-        navigate('/club-profile', { replace: true })
+        navigate(destination, { replace: true })
       } else if (mode === 'sign-up') {
-        const result = await client.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/sign-in` } })
+        const result = await client.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/sign-in${authQuery}` } })
         if (result.error) throw result.error
-        if (result.data.session) navigate('/club-profile', { replace: true })
+        if (result.data.session) navigate(destination, { replace: true })
         else setNotice('Check your email to confirm your account, then sign in. If you already have an account, sign in or reset your password.')
       } else if (mode === 'forgot-password') {
         const result = await client.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` })
@@ -59,7 +64,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
       <button className="button" disabled={busy}>{busy ? 'Please wait…' : titles[mode]}</button>
     </form>}
     <div className="mt-6 flex flex-wrap gap-4 text-sm text-green-800 underline">
-      <Link to="/sign-in">Sign in</Link><Link to="/sign-up">Create account</Link><Link to="/forgot-password">Forgot password</Link>
+      <Link to={`/sign-in${authQuery}`}>Sign in</Link><Link to={`/sign-up${authQuery}`}>Create account</Link><Link to="/forgot-password">Forgot password</Link>
       {reset && notice && <Link to="/club-profile">Continue to club</Link>}
     </div>
   </section>

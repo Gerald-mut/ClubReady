@@ -6,6 +6,7 @@ import EvidencePackage from './pages/EvidencePackage'
 import PwaStatus from './components/PwaStatus'
 import AuthPage from './pages/auth/AuthPage'
 import ClubSetup from './pages/club/ClubSetup'
+import JoinClub from './pages/club/JoinClub'
 import RouteGuard from './components/RouteGuard'
 import { useAuth } from './hooks/useAuth'
 import { backend, message } from './services/supabase'
@@ -14,6 +15,7 @@ import { useState } from 'react'
 const navigation = [
   ['/club-profile', 'Club profile'], ['/play-proof', 'Play proof'],
   ['/opportunities', 'Opportunities'], ['/evidence-package', 'Evidence package'],
+  ['/join', 'Join a club'],
 ]
 
 export default function App() {
@@ -40,6 +42,8 @@ export default function App() {
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
       <Routes>
         <Route path="/" element={<Navigate to="/club-profile" replace />} />
+        <Route path="/join" element={<JoinClub key={session?.user.id || 'signed-out'} />} />
+        <Route path="/join/:token" element={<JoinClub key={session?.user.id || 'signed-out'} />} />
         {(['sign-in', 'sign-up', 'forgot-password', 'reset-password'] as const).map(mode => <Route key={mode} path={`/${mode}`} element={<AuthPage key={mode} mode={mode} />} />)}
         <Route element={<RouteGuard setup />}><Route path="/club-setup" element={<ClubSetup />} /></Route>
         <Route element={<RouteGuard />}>

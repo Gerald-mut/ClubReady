@@ -3,6 +3,7 @@ import { useClub } from '../../hooks/useClub'
 import { useAuth } from '../../hooks/useAuth'
 import ClubForm from '../../components/club/ClubForm'
 import Documents from '../../components/documents/Documents'
+import Members from '../../components/members/Members'
 import { updateClub } from '../../services/clubs'
 export default function ClubProfile() {
   const { selection, refresh } = useClub()
@@ -23,6 +24,7 @@ export default function ClubProfile() {
       <div><dt className="text-sm text-slate-500">Contact email</dt><dd className="mt-1 break-words">{club.contact_email || 'Not added'}</dd></div>
       <div className="sm:col-span-2"><dt className="text-sm text-slate-500">About the club</dt><dd className="mt-1 whitespace-pre-wrap break-words">{club.description || 'No description added yet.'}</dd></div>
     </dl>}
+    <Members key={`members:${club.id}:${session.user.id}:${membership.role}`} clubId={club.id} userId={session.user.id} admin={admin} refresh={refresh} />
     <Documents key={`${club.id}:${session.user.id}:${membership.role}`} clubId={club.id} userId={session.user.id} admin={admin} />
   </section>
 }

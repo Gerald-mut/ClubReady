@@ -1,0 +1,217 @@
+BEGIN
+CREATE FUNCTION
+CREATE FUNCTION
+INSERT 0 3
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000001
+(1 row)
+
+ assert_true 
+-------------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 20000000-0000-0000-0000-000000000002
+(1 row)
+
+ assert_true 
+-------------
+ 
+(1 row)
+
+ assert_true 
+-------------
+ 
+(1 row)
+
+UPDATE 0
+ denied 
+--------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+RESET
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000001
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+ assert_true 
+-------------
+ 
+(1 row)
+
+UPDATE 1
+ assert_true 
+-------------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 20000000-0000-0000-0000-000000000002
+(1 row)
+
+ assert_true 
+-------------
+ 
+(1 row)
+
+ assert_true 
+-------------
+ 
+(1 row)
+
+DELETE 0
+DELETE 0
+ denied 
+--------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 30000000-0000-0000-0000-000000000003
+(1 row)
+
+ assert_true 
+-------------
+ 
+(1 row)
+
+ assert_true 
+-------------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+ assert_true 
+-------------
+ 
+(1 row)
+
+UPDATE 0
+ assert_true 
+-------------
+ 
+(1 row)
+
+DELETE 0
+ assert_true 
+-------------
+ 
+(1 row)
+
+DELETE 0
+ assert_true 
+-------------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000001
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+ assert_true 
+-------------
+ 
+(1 row)
+
+DELETE 1
+DELETE 1
+ assert_true 
+-------------
+ 
+(1 row)
+
+ assert_true 
+-------------
+ 
+(1 row)
+
+RESET
+ assert_true 
+-------------
+ 
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 90000000-0000-0000-0000-000000000009
+(1 row)
+
+DO
+RESET
+ assert_true 
+-------------
+ 
+(1 row)
+
+SET
+ denied 
+--------
+ 
+(1 row)
+
+ denied 
+--------
+ 
+(1 row)
+
+RESET
+ROLLBACK
+Phase 3 SQL security assertions passed (fixtures rolled back).

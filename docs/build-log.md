@@ -40,3 +40,9 @@
 - Why: The shared jsdom harness provides DOM matchers and cleanup, while the test configuration keeps the existing Vite/PWA build configuration separate from unit testing. Neither file is an independent test suite.
 - How to verify: `npm test`. Historical result: the harness supported the earlier successful 44-test run, preserved in `.codex-logs/phase3-prior-test.log`; it was not rerun in this continuation.
 - Known limits/open items: These files cannot establish live Supabase integration or browser rendering correctness.
+
+## Steps 2, 5–6: scoped UI completion
+- What: Preserved existing authentication, club onboarding and administrator/member profile flows; replaced the profile document interface with an empty placeholder. Fixed a late session-restoration rejection overwriting a newer authentication event. No migrations or Storage implementation changed.
+- Why: Keep password recovery state consistent and defer Step 7 while retaining the existing design and frontend publishable-key configuration.
+- How to verify: npm test (46 tests across 3 files passed), npm run lint (passed), npm run build (passed); logs: .codex-logs/phase3-ui-test-final.log, .codex-logs/phase3-ui-lint-final.log, .codex-logs/phase3-ui-build.log. Added regressions for the restoration race and the administrator documents placeholder making no storage calls.
+- Limits: Tests use mocked service boundaries; live Supabase Auth/email delivery and browser/mobile behavior were not verified. Existing standalone document tests ran unchanged; Step 7 remains disconnected from the profile.

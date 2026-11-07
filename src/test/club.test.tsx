@@ -51,6 +51,12 @@ describe('club management', () => {
     wrap(<ClubProfile />, 'club_member'); await screen.findByText('No documents supplied yet.')
     expect(screen.getByText('Nairobi Stars')).toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Edit profile' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Upload document' })).not.toBeInTheDocument()
   })
+  it('shows an empty documents placeholder without contacting storage for administrators', () => {
+    wrap(<ClubProfile />)
+    expect(screen.getByRole('region', { name: 'Club documents' })).toHaveTextContent('No documents supplied yet.')
+    expect(screen.queryByRole('button', { name: 'Upload document' })).not.toBeInTheDocument()
+    expect(mock.listDocuments).not.toHaveBeenCalled()
+  })
   it('reports club save failures', async () => {
     mock.createClub.mockRejectedValue(new Error('Creation unavailable')); wrap(<ClubSetup />); const user = userEvent.setup()
     await user.type(screen.getByLabelText('Club name (required)'), 'Club'); await user.type(screen.getByLabelText('County (required)'), 'Nairobi'); await user.click(screen.getByRole('button', { name: 'Create club' })); expect(await screen.findByRole('alert')).toHaveTextContent('Creation unavailable')

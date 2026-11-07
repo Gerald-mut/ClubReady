@@ -91,6 +91,16 @@ describe('session provider', () => {
     render(<AuthProvider><Probe /></AuthProvider>)
     expect(await screen.findByText('Session expired')).toBeInTheDocument()
   })
+  it('ignores a late restoration rejection after a recovery event', async () => {
+    let reject!: (reason: Error) => void
+    function ErrorProbe() { return <p>{useAuth().error || 'No auth error'}</p> }
+    mock.auth.getSession.mockReturnValue(new Promise((_, fail) => { reject = fail }))
+    render(<AuthProvider><Probe /><ErrorProbe /></AuthProvider>)
+    act(() => mock.listener?.('PASSWORD_RECOVERY', session))
+    await act(async () => reject(new Error('Stale network failure')))
+    expect(screen.getByText('authenticated recovery')).toBeInTheDocument()
+    expect(screen.getByText('No auth error')).toBeInTheDocument()
+  })
 })
 describe('protected routes', () => {
   const club = { selection: null, loading: false, error: '', refresh: vi.fn() }

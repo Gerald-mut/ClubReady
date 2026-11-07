@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!active || revision.current !== initialRevision) return
       if (failure) setError(message(failure))
       setSession(data.session); setLoading(false)
-    }).catch(failure => { if (active) { setError(message(failure)); setLoading(false) } })
+    }).catch(failure => { if (active && revision.current === initialRevision) { setError(message(failure)); setLoading(false) } })
     return () => { active = false; subscription.unsubscribe() }
   }, [])
   return <AuthContext.Provider value={{ session, loading, error, recovery, finishRecovery: () => setRecovery(false) }}>{children}</AuthContext.Provider>

@@ -51,11 +51,12 @@ describe('club management', () => {
     wrap(<ClubProfile />, 'club_member'); await screen.findByText('No documents supplied yet.')
     expect(screen.getByText('Nairobi Stars')).toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Edit profile' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Upload document' })).not.toBeInTheDocument()
   })
-  it('shows an empty documents placeholder without contacting storage for administrators', () => {
+  it('loads documents and exposes upload controls on the administrator profile', async () => {
     wrap(<ClubProfile />)
+    await screen.findByText('No documents supplied yet.')
     expect(screen.getByRole('region', { name: 'Club documents' })).toHaveTextContent('No documents supplied yet.')
-    expect(screen.queryByRole('button', { name: 'Upload document' })).not.toBeInTheDocument()
-    expect(mock.listDocuments).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Upload document' })).toBeInTheDocument()
+    expect(mock.listDocuments).toHaveBeenCalledWith(club.id)
   })
   it('reports club save failures', async () => {
     mock.createClub.mockRejectedValue(new Error('Creation unavailable')); wrap(<ClubSetup />); const user = userEvent.setup()
@@ -84,6 +85,36 @@ describe('document interface', () => {
     mock.listDocuments.mockResolvedValue([document]); mock.documentUrl.mockResolvedValue('https://example.com/signed'); render(<Documents clubId={club.id} userId="user-a" admin={false} />)
     await screen.findByText('policy.pdf'); expect(mock.documentUrl).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: 'View' })); expect(mock.documentUrl).toHaveBeenCalledWith(document,false); expect(await screen.findByRole('link', { name: 'Open policy.pdf' })).toHaveAttribute('href','https://example.com/signed')
+  })
+  it('retries a failed document listing', async () => {
+    mock.listDocuments.mockRejectedValueOnce(new Error('Listing unavailable')).mockResolvedValue([document])
+    wrap(<ClubProfile />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Listing unavailable')
+    await userEvent.click(screen.getByRole('button', { name: 'Reload documents' }))
+    expect(await screen.findByText('policy.pdf')).toBeInTheDocument()
+  })
+  it('shows upload progress and preserves errors for retry', async () => {
+    let reject!: (error: Error) => void
+    mock.uploadDocument.mockReturnValue(new Promise<void>((_, fail) => { reject = fail }))
+    wrap(<ClubProfile />)
+    await userEvent.upload(screen.getByLabelText(/File \(PDF/), new File(['pdf'], 'test.pdf', { type: 'application/pdf' }))
+    fireEvent.submit(screen.getByRole('button', { name: 'Upload document' }).closest('form')!)
+    expect(screen.getByRole('button', { name: 'Please wait…' })).toBeDisabled()
+    reject(new Error('Upload unavailable'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Upload unavailable')
+    expect(screen.getByRole('button', { name: 'Upload document' })).toBeEnabled()
+  })
+  it('requests signed downloads and reports deletion failures without removing the listing', async () => {
+    mock.listDocuments.mockResolvedValue([document]); mock.documentUrl.mockResolvedValue('https://example.com/download')
+    mock.deleteDocument.mockRejectedValue(new Error('Deletion unavailable'))
+    wrap(<ClubProfile />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Download' }))
+    expect(mock.documentUrl).toHaveBeenCalledWith(document, true)
+    expect(await screen.findByRole('link', { name: 'Download policy.pdf' })).toHaveAttribute('href', 'https://example.com/download')
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Deletion unavailable')
+    expect(screen.getByText('policy.pdf')).toBeInTheDocument()
   })
 })
 function MembershipProbe() { const { selection, loading, error } = useClub(); return <p>{loading ? 'Loading membership' : error || selection?.club.name || 'No club'}</p> }

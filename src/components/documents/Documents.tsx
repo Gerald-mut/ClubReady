@@ -39,7 +39,7 @@ export default function Documents({ clubId, userId, admin }: { clubId: string; u
       form.reset(); setNotice('Document supplied. It has not been independently verified.'); setLoading(true); setVersion(value => value + 1)
     })
   }
-  return <section className="mt-10 border-t border-slate-200 pt-6">
+  return <section className="mt-10 border-t border-slate-200 pt-6" aria-label="Club documents" aria-busy={busy || loading}>
     <h2 className="text-xl font-semibold">Club documents</h2><p className="mt-2 text-sm text-slate-600">Private to club members. Supplied documents have not been independently verified.</p>
     {admin && <form className="mt-5 grid gap-4 max-w-xl" onSubmit={upload}>
       <label className="field">Document type<select name="document_type">{Object.entries(documentTypes).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>

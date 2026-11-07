@@ -1,0 +1,2 @@
+-- Add verified opportunity records after the opportunity schema is defined.
+-- Record source URLs and verification dates; do not seed unverified deadlines.

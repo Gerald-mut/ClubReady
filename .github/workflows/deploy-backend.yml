@@ -1,0 +1,70 @@
+name: Backend (test and deploy)
+
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - ".github/workflows/deploy-backend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two deploys against the shared project at once.
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Migrations and RLS tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Apply migrations from scratch
+        run: supabase db reset
+
+      - name: Run pgTAP tests
+        run: supabase test db
+
+  deploy:
+    name: Deploy to Supabase
+    needs: test
+    # Only merges to main (or a manual run on main) touch the shared project.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      # v3: database commands target the local stack unless --remote is given,
+      # and unattended hosted changes require --yes.
+      - name: Apply migrations to the shared project
+        run: supabase db push --yes --remote
+
+      - name: Deploy Edge Functions
+        run: supabase functions deploy --yes

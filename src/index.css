@@ -5,3 +5,10 @@
   button, a { @apply focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-green-700; }
   button { @apply cursor-pointer; }
 }
+
+@layer components {
+  .panel { @apply rounded-xl border border-slate-200 bg-white p-5 sm:p-8; }
+  .field { @apply flex flex-col gap-2 text-sm font-medium text-slate-700; }
+  .field input, .field select, .field textarea { @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-base text-slate-900 focus:outline-2 focus:outline-green-700; }
+  .button { @apply rounded-lg bg-green-800 px-5 py-3 text-sm font-semibold text-white hover:bg-green-900 disabled:cursor-wait disabled:opacity-60; }
+}

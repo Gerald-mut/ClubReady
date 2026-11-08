@@ -4,6 +4,7 @@ import PlayProof from './pages/PlayProof'
 import Opportunities from './pages/Opportunities'
 import EvidencePackage from './pages/EvidencePackage'
 import PwaStatus from './components/PwaStatus'
+import ActivitySync from './components/ActivitySync'
 import AuthPage from './pages/auth/AuthPage'
 import ClubSetup from './pages/club/ClubSetup'
 import JoinClub from './pages/club/JoinClub'
@@ -34,6 +35,7 @@ export default function App() {
         <Link to="/" className="text-xl font-bold text-green-800">ClubReady <span className="text-slate-500">254</span></Link>
         <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">{session ? <><span className="break-all">{session.user.email}</span><button disabled={busy} className="text-green-800 underline" onClick={() => void signOut()}>{busy ? 'Signing out…' : 'Sign out'}</button></> : <Link to="/sign-in" className="text-green-800 underline">Sign in</Link>}</div>
         {error && <p role="alert" className="text-red-700">{error}</p>}
+        <ActivitySync />
         <nav aria-label="Main navigation" className="mt-5 flex flex-wrap gap-2">
           {navigation.map(([to, label]) => <NavLink key={to} to={to} className={({ isActive }) => `rounded-lg px-4 py-2 text-sm font-medium ${isActive ? 'bg-green-800 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{label}</NavLink>)}
         </nav>

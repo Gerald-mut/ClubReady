@@ -3,7 +3,7 @@ import type { ClubProfile, Opportunity } from '../types'
 import { MAX_IMAGE_BYTES, validateActivity, type Attachment, type ActivityInput, type LocalActivity } from '../services/activities'
 import type { Club, Membership } from '../types/club'
 export interface CachedSelection { user_id: string; selection: { membership: Membership; club: Club } }
-export const LOCAL_SCHEMA_VERSION = 2
+export const LOCAL_SCHEMA_VERSION = 3
 export function createLocalDatabase(name = 'clubready-254') {
   const database = new Dexie(name) as Dexie & {
     clubs: EntityTable<ClubProfile, 'id'>; activities: EntityTable<LocalActivity, 'id'>
@@ -23,13 +23,21 @@ export function createLocalDatabase(name = 'clubready-254') {
       delete activity.clubId; delete activity.occurredAt
     })
   })
+  database.version(3).stores({ activities: 'id, [created_by+club_id], date, sync_status' }).upgrade(async transaction => {
+    await transaction.table('activities').toCollection().modify(activity => {
+      activity.attempt_count = activity.attempt_count ?? 0
+      activity.last_error = activity.last_error ?? ''
+      activity.next_retry_at = activity.next_retry_at ?? 0
+      if (activity.sync_status === 'uploading') activity.sync_status = 'pending_sync'
+    })
+  })
   return database
 }
 export const db = createLocalDatabase()
 export async function listActivities(userId: string, clubId: string) {
   return (await db.activities.where('[created_by+club_id]').equals([userId, clubId]).toArray()).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
 }
-export function editable(activity: LocalActivity) { return activity.sync_status !== 'synced' && activity.sync_status !== 'uploading' }
+export function editable(activity: LocalActivity) { return activity.sync_started_at === undefined && activity.sync_status !== 'synced' && activity.sync_status !== 'uploading' && activity.sync_status !== 'pending_sync' }
 export async function saveActivity(userId: string, clubId: string, input: ActivityInput, attachments: Attachment[] = [], id?: string) {
   const error = validateActivity(input)
   if (error) throw new Error(error)

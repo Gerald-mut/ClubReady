@@ -3,9 +3,11 @@ import { useAuth } from '../../hooks/useAuth'
 import { useClub } from '../../hooks/useClub'
 import { db, deleteActivity, editable, listActivities, saveActivity } from '../../db/offline'
 import { activityTypes, compressImage, validateActivity, type ActivityInput, type Attachment, type LocalActivity } from '../../services/activities'
+import { useSyncState } from '../../hooks/useSyncState'
+import { syncEngine } from '../../services/sync'
 
 const blank = (): ActivityInput => ({ activity_type: 'training', title: '', date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10), location: '', participants_count: 1, notes: '' })
-const labels = { saved_locally: 'Saved locally', pending_sync: 'Pending sync', uploading: 'Uploading', synced: 'Synced', failed: 'Failed' }
+const labels = { saved_locally: 'Saved locally', pending_sync: 'Pending sync', uploading: 'Uploading', synced: 'Synced', failed: 'Failed - retry' }
 function Photo({ attachment }: { attachment: Attachment }) {
   const element = useRef<HTMLImageElement>(null)
   useEffect(() => { const value = URL.createObjectURL(attachment.blob); if (element.current) element.current.src = value; return () => URL.revokeObjectURL(value) }, [attachment])
@@ -21,6 +23,7 @@ export function ActivityRecorder({ userId, clubId }: { userId: string; clubId: s
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const sync = useSyncState()
   async function refresh() { const rows = await listActivities(userId, clubId); setActivities(rows); setStoredPhotos(await db.attachments.where('activity_id').anyOf(rows.map(row => row.id)).toArray()) }
   useEffect(() => {
     let active = true
@@ -28,20 +31,20 @@ export function ActivityRecorder({ userId, clubId }: { userId: string; clubId: s
     const update = () => setOnline(navigator.onLine)
     window.addEventListener('online', update); window.addEventListener('offline', update)
     return () => { active = false; window.removeEventListener('online', update); window.removeEventListener('offline', update) }
-  }, [userId, clubId])
+  }, [userId, clubId, sync.revision])
   function reset() { setInput(blank()); setId(undefined); setPhotos([]) }
   async function submit(event: FormEvent) {
     event.preventDefault(); setError(''); setNotice('')
     const invalid = validateActivity(input)
     if (invalid) { setError(invalid); return }
     setBusy(true)
-    try { await saveActivity(userId, clubId, input, photos, id); reset(); await refresh(); setNotice('Saved locally on this device.') }
+    try { await saveActivity(userId, clubId, input, photos, id); reset(); await refresh(); setNotice('Saved locally on this device.'); if (navigator.onLine) void syncEngine.run() }
     catch (failure) { setError(failure instanceof Error ? failure.message : 'Unable to save. Your form is still available; check device storage.') }
     finally { setBusy(false) }
   }
   const field = 'mt-1 w-full rounded-lg border border-slate-300 bg-white p-3'
   return <section className="max-w-3xl space-y-6">
-    <div><h1 className="text-2xl font-bold">PlayProof</h1><p role="status">{online ? 'Online' : 'Offline'} · Records stay on this device. Cloud sync is not available.</p><p className="text-sm text-slate-600">Open this app online once to prepare offline access. Clearing browser data removes local records.</p></div>
+    <div><h1 className="text-2xl font-bold">PlayProof</h1><p role="status">{online ? 'Online · Activities sync automatically' : 'Offline · Activities will sync when you reconnect'}. Local copies stay on this device.</p><p className="text-sm text-slate-600">Open this app online once to prepare offline access. Clearing browser data removes local records.</p></div>
     {error && <p role="alert" className="text-red-700">{error}</p>}{notice && <p role="status">{notice}</p>}
     <form onSubmit={event => void submit(event)} noValidate className="space-y-4 rounded-xl border border-slate-200 p-4">
       <h2 className="text-xl font-semibold">{id ? 'Edit activity' : 'Record activity'}</h2>
@@ -69,6 +72,9 @@ export function ActivityRecorder({ userId, clubId }: { userId: string; clubId: s
     {!activities.length && <p>No activities recorded yet.</p>}
     <ul className="space-y-4">{activities.map(activity => <li key={activity.id} className="space-y-2 rounded-xl border border-slate-200 p-4">
       <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-sm">{labels[activity.sync_status]}</span>
+      {activity.last_error && <p className="text-red-700">{activity.last_error}</p>}
+      {activity.sync_status === 'failed' && <button className="underline disabled:opacity-50" disabled={!online || sync.running || sync.authRequired} onClick={() => void syncEngine.run(true)}>Retry sync</button>}
+      {activity.sync_started_at !== undefined && activity.sync_status !== 'synced' && <p className="text-sm text-slate-600">Sync has started. This record is kept unchanged so it can be retried safely.</p>}
       <h3 className="font-semibold">{activity.title}</h3><p>{activity.date} · {activity.activity_type} · {activity.location}</p><p>{activity.participants_count} participants</p><p className="whitespace-pre-wrap break-words">{activity.notes}</p>
       <div className="flex flex-wrap gap-2">{storedPhotos.filter(photo => photo.activity_id === activity.id).map(photo => <Photo key={photo.id} attachment={photo} />)}</div>
       {editable(activity) && <div className="flex gap-6"><button disabled={busy} className="underline" onClick={() => { setId(activity.id); setInput(activity); setPhotos(storedPhotos.filter(photo => photo.activity_id === activity.id)); setError(''); setNotice('') }}>Edit</button><button disabled={busy} className="text-red-700 underline" onClick={async () => {

@@ -6,6 +6,7 @@ export interface ActivityInput {
 }
 export interface LocalActivity extends ActivityInput {
   id: string; club_id: string; created_by: string; createdAt: string; sync_status: SyncStatus
+  attempt_count?: number; last_error?: string; next_retry_at?: number; sync_started_at?: number
 }
 export interface Attachment { id: string; activity_id: string; blob: Blob; name: string }
 export const MAX_IMAGE_BYTES = 1024 * 1024

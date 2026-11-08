@@ -363,10 +363,14 @@ Apply these after the three Phase 3/3.5 migrations, in this order:
 3. `supabase/migrations/202611080003_opportunity_assessments.sql`
 4. Run `supabase/seeds/opportunities.sql` through a trusted database connection.
 
-For a hosted project, run the new migration and seed in that project's SQL Editor;
-frontend deployment does not seed Supabase. Existing installations that already
-applied the first migration need only the second migration and refreshed seed.
-Local `supabase db reset` applies both and loads the configured seed automatically.
+Local `supabase db reset` replays all migrations and loads the configured seed
+automatically. Frontend deployment does not seed Supabase. Hosted migration and
+catalogue changes require a separately reviewed release against verified database
+history; do not bypass migration tracking with ad hoc SQL Editor changes.
+
+See [deployment setup and release gates](docs/deployment.md) for frontend/backend
+CI, SQL test discovery, required GitHub protections and the disabled manual release
+review template. Passing CI does not authorize or trigger production deployment.
 
 The directory lists five programmes: SASDF, FIFA, Safaricom Chapa Dimba, UEFA and
 GlobalGiving. Search and filter by type, availability and country/scope. The old

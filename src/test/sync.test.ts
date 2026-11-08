@@ -56,6 +56,36 @@ describe('activity sync engine', () => {
     expect((await db.activities.get(local.id))?.sync_status).toBe('synced')
     expect(await db.attachments.count()).toBe(1)
   })
+  it('retains an interrupted upload and retries it after a long offline absence', async () => {
+    const local = await seed(true), cloud = server()
+    cloud.transport.insertActivity.mockRejectedValueOnce(new Error('interrupted before metadata'))
+    await cloud.engine.run()
+    const [path, bytes] = [...cloud.uploads.entries()][0]
+    expect(cloud.rows.size).toBe(0)
+    // No server activity or attachment proves abandonment: retries have no TTL.
+    clock += 365 * 24 * 60 * 60 * 1000
+    db.close(); await db.open()
+    await cloud.engine.run()
+    expect(cloud.uploads.get(path)).toBe(bytes)
+    expect(cloud.uploads.size).toBe(1)
+    expect(cloud.photos.size).toBe(1)
+    expect((await db.activities.get(local.id))?.sync_status).toBe('synced')
+  })
+  it('preserves an uploaded object while its metadata retry is still in backoff', async () => {
+    const local = await seed(true), cloud = server()
+    cloud.transport.insertAttachment.mockRejectedValueOnce(new Error('metadata unavailable'))
+    await cloud.engine.run()
+    const [path, bytes] = [...cloud.uploads.entries()][0]
+    expect(cloud.rows.size).toBe(1)
+    expect(cloud.photos.size).toBe(0)
+    await cloud.engine.run()
+    expect(cloud.transport.upload).toHaveBeenCalledTimes(1)
+    expect(cloud.uploads.get(path)).toBe(bytes)
+    clock = 2000
+    await cloud.engine.run()
+    expect(cloud.uploads.get(path)).toBe(bytes)
+    expect((await db.activities.get(local.id))?.sync_status).toBe('synced')
+  })
   it('recovers an uploading record after restart and retries attachment metadata failures', async () => {
     const local = await seed(true), cloud = server()
     await db.activities.update(local.id, { sync_status: 'uploading', sync_started_at: 1 })

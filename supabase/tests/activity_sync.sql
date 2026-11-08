@@ -7,7 +7,7 @@ begin
  begin execute statement; exception when insufficient_privilege or check_violation or not_null_violation or foreign_key_violation or datetime_field_overflow then return; end;
  raise exception 'FAIL: expected rejection: %', label;
 end $$;
-select pg_temp.assert_true((select not public and file_size_limit=5242880 and allowed_mime_types=array['image/jpeg','image/png'] from storage.buckets where id='activity-media'), 'private image bucket limits');
+select pg_temp.assert_true((select not public and file_size_limit=1048576 and allowed_mime_types=array['image/jpeg','image/png'] from storage.buckets where id='activity-media'), 'private image bucket limits');
 insert into auth.users(id) values ('51000000-0000-0000-0000-000000000001'), ('51000000-0000-0000-0000-000000000002'), ('51000000-0000-0000-0000-000000000003');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','51000000-0000-0000-0000-000000000001',true);
@@ -20,7 +20,8 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','51000000-0000-0000-0000-000000000003',true);
 -- An ordinary member uploads before the activity exists.
 select :'club_a'||'/52000000-0000-0000-0000-000000000001/53000000-0000-0000-0000-000000000001.jpg' as path \gset
-insert into storage.objects(bucket_id,name,owner_id) values ('activity-media',:'path',auth.uid()::text);
+-- Catalog-only fixtures imitate Storage API metadata, not physical uploads.
+insert into storage.objects(bucket_id,name,owner_id,metadata) values ('activity-media',:'path',auth.uid()::text,'{"size":100,"mimetype":"image/jpeg"}');
 select format('insert into public.activities(id,club_id,created_by,activity_type,title,date,location,participants_count,notes,created_at) values (%L,%L,%L,%L,%L,%L,%L,12,%L,%L)', '52000000-0000-0000-0000-000000000001', :'club_a', '51000000-0000-0000-0000-000000000003','training','Practice','2026-11-08','Nairobi','Notes','2026-11-07T10:00:00Z') as insert_activity \gset
 :insert_activity;
 :insert_activity on conflict(id) do nothing;
@@ -30,10 +31,10 @@ insert into public.activity_attachments values ('53000000-0000-0000-0000-0000000
 select pg_temp.assert_true((select count(*)=1 from public.activity_attachments), 'attachment retry no-op');
 select pg_temp.denied(format('insert into public.activities(id,club_id,created_by,activity_type,title,date,location,participants_count,notes,created_at,synced_at) values (gen_random_uuid(),%L,auth.uid(),%L,%L,current_date,%L,1,%L,now(),now())', :'club_a','training','Server time','Nairobi',''), 'client cannot supply synced_at');
 select replace(:'path','53000000-0000-0000-0000-000000000001','53000000-0000-0000-0000-000000000002') as path_two \gset
-insert into storage.objects(bucket_id,name,owner_id) values ('activity-media',:'path_two',auth.uid()::text);
-select format('insert into public.activity_attachments values (%L,%L,%L,%L,5242880)', '53000000-0000-0000-0000-000000000002','52000000-0000-0000-0000-000000000001',:'path_two','image/png') as insert_attachment \gset
-select pg_temp.denied(replace(:'insert_attachment','5242880','5242881'), 'attachment size limit');
-select pg_temp.denied(replace(:'insert_attachment','5242880','0'), 'nonempty attachment');
+insert into storage.objects(bucket_id,name,owner_id,metadata) values ('activity-media',:'path_two',auth.uid()::text,'{"size":1048576,"mimetype":"image/png"}');
+select format('insert into public.activity_attachments values (%L,%L,%L,%L,1048576)', '53000000-0000-0000-0000-000000000002','52000000-0000-0000-0000-000000000001',:'path_two','image/png') as insert_attachment \gset
+select pg_temp.denied(replace(:'insert_attachment','1048576','1048577'), 'attachment size limit');
+select pg_temp.denied(replace(:'insert_attachment','1048576','0'), 'nonempty attachment');
 select pg_temp.denied(replace(:'insert_attachment','image/png','image/webp'), 'attachment MIME');
 select pg_temp.denied(replace(:'insert_attachment',:'path_two',:'path_two'||'x'), 'attachment deterministic path');
 :insert_attachment;
@@ -64,7 +65,7 @@ select set_config('request.jwt.claim.sub','51000000-0000-0000-0000-000000000001'
 select pg_temp.assert_true((select count(*)=1 from public.activities), 'club admin reads member activity');
 select pg_temp.assert_true((select count(*)=2 from public.activity_attachments), 'club admin reads attachments');
 select replace(:'path','53000000-0000-0000-0000-000000000001','53000000-0000-0000-0000-000000000003') as admin_path \gset
-insert into storage.objects(bucket_id,name,owner_id) values ('activity-media',:'admin_path',auth.uid()::text);
+insert into storage.objects(bucket_id,name,owner_id,metadata) values ('activity-media',:'admin_path',auth.uid()::text,'{"size":100,"mimetype":"image/jpeg"}');
 select pg_temp.denied(format('insert into public.activity_attachments values (%L,%L,%L,%L,100)','53000000-0000-0000-0000-000000000003','52000000-0000-0000-0000-000000000001',:'admin_path','image/jpeg'), 'another creator attachment');
 select set_config('request.jwt.claim.sub','51000000-0000-0000-0000-000000000002',true);
 select pg_temp.assert_true((select count(*)=0 from public.activities), 'unrelated activity hidden');

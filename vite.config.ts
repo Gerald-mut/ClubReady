@@ -6,15 +6,14 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   plugins: [react(), tailwindcss(), VitePWA({
     registerType: 'prompt',
-    includeAssets: ['icon.svg', 'pwa-192.png', 'pwa-512.png'],
+    includeAssets: ['icon.svg'],
     manifest: {
       name: 'ClubReady 254', short_name: 'ClubReady',
       description: 'Build your club profile and evidence of play.',
-      theme_color: '#166534', background_color: '#f8fafc',
+      theme_color: '#111111', background_color: '#FFFFFF',
       display: 'standalone', start_url: '/',
       icons: [
-        { src: '/pwa-192.png', sizes: '192x192', type: 'image/png' },
-        { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
+        { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
       ],
     },
     workbox: { globPatterns: ['**/*.{js,css,html,svg,png,ico}'], navigateFallback: '/index.html' },

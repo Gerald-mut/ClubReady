@@ -25,6 +25,16 @@ beforeEach(() => {
   mock.auth.getSession.mockResolvedValue({ data: { session }, error: null })
 })
 describe('authentication pages', () => {
+  it('allows re-login when sync pauses but a cached session still exists', async () => {
+    mock.auth.signInWithPassword.mockResolvedValue({ error: null })
+    render(<AuthContext.Provider value={{ ...state, session }}><MemoryRouter initialEntries={['/sign-in?reauth=1']}><Routes><Route path="/sign-in" element={<AuthPage mode="sign-in" />} /><Route path="/club-profile" element={<p>Club destination</p>} /></Routes></MemoryRouter></AuthContext.Provider>)
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), 'coach@example.com')
+    await user.type(screen.getByLabelText('Password'), 'password123')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(mock.auth.signInWithPassword).toHaveBeenCalled()
+    expect(await screen.findByText('Club destination')).toBeInTheDocument()
+  })
   it('signs in with email and password', async () => {
     mock.auth.signInWithPassword.mockResolvedValue({ error: null })
     page('sign-in'); const user = userEvent.setup()

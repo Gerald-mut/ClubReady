@@ -1,0 +1,46 @@
+name: Backend CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Local Supabase validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 3.0.0
+      - name: Verify pinned CLI
+        run: test "$(supabase --version)" = '3.0.0'
+      - name: Install SQL test client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      - name: Start isolated local Supabase
+        # Startup prints local API keys. Keep its output off the Actions log and
+        # do not upload it as an artifact, even though these are disposable keys.
+        run: |
+          if ! supabase start > "$RUNNER_TEMP/supabase-start.log" 2>&1; then
+            echo 'Local Supabase startup failed; inspect runner/Docker availability. Startup output withheld because it can contain keys.'
+            exit 1
+          fi
+      # Local only. Reset automatically runs ./seeds/opportunities.sql from config.
+      - name: Replay migrations and configured seed
+        run: supabase db reset --yes
+      - name: Run SQL assertions and pgTAP tests
+        run: bash scripts/ci/test-backend.sh
+      - name: Stop isolated local Supabase
+        if: always()
+        run: supabase stop --no-backup

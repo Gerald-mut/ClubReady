@@ -1,0 +1,55 @@
+name: Backend release review (disabled)
+
+# No push, workflow_run or CI-success trigger. No mutation command exists here.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Shared across branches/workflows targeting this project, including future apply
+# workflows. Configure the project ref as a repository variable, never user input.
+concurrency:
+  group: supabase-production-${{ vars.SUPABASE_PROJECT_ID || 'unconfigured' }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    name: Remote migration dry-run (disabled pending approval)
+    # Hard stop: changing a GitHub variable or approving an Environment cannot
+    # enable this job. A separately reviewed YAML change is required.
+    if: ${{ false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Restrict release source
+        env:
+          RELEASE_REF: ${{ github.ref }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_ID }}
+        run: |
+          test "$RELEASE_REF" = 'refs/heads/frontend-dev'
+          test -n "$PROJECT_REF"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 3.0.0
+      - name: Verify pinned CLI
+        run: test "$(supabase --version)" = '3.0.0'
+      - name: Link approved project for review only
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_ID }}
+        run: supabase link --project-ref "$PROJECT_REF"
+      - name: Review remote history and pending migrations without applying
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase migration list --remote
+          supabase db push --remote --dry-run --skip-vault
+      # Deliberately no apply job or function deployment. A dry-run is not approval.

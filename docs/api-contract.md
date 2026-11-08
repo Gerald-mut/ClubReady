@@ -2,7 +2,9 @@
 
 > Historical scaffold proposal. For the current app contracts and pending backend
 > integration, read [backend-handoff.md](backend-handoff.md). The activity payload
-> below predates Dexie v2; there is no active outbox or functional cloud sync.
+> below predates Dexie v2. Phase 5 now syncs directly through PostgREST and
+> Storage using `src/services/sync/transport.ts`; this Edge Function proposal is
+> not the active browser sync contract.
 > Phase 7 workers must be privileged; a future user Recompute action is admin-only,
 > superseding the generic membership-only proposal below.
 

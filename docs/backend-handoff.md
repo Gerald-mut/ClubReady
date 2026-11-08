@@ -1,5 +1,29 @@
 # Backend integration handoff
 
+## Integration update after fetching GitHub (2026-11-08)
+
+`frontend-dev` now includes GitHub's merged Phase 5 sync work. The original inventory
+below describes the earlier local snapshot and must be read with this update:
+
+- `202611080001_activity_sync.sql` creates server activities, attachment metadata
+  and the private activity-media bucket; apply it before Phase 6 migrations.
+- `src/services/sync/{engine,transport,triggers}.ts` implements authenticated direct
+  PostgREST/Storage sync with stable UUIDs, retries, attachment acknowledgments and
+  live membership checks. `src/db/offline.ts` retains local records and retry state.
+- Sync runs on save, reconnect, an open-app timer or manual action. The collapsible
+  Activity sync section in AppShell mounts the global triggers and exposes status,
+  retry and reauthentication. PlayProof retains per-record status/retry controls.
+- Reuse this activity schema and transport for future readiness integration; do not
+  create a competing activity table or treat cloud sync as absent. Counts in the
+  current opportunity comparison/Home remain scoped to local records.
+- Both Edge Function files in this frontend checkout remain 501 stubs. The separately
+  fetched `origin/backend/foundation` has backend work and was not merged by this
+  publishing task; coordinate its contracts with the backend team.
+- Phase 7 persistence, worker/scheduler and live result UI remain deferred. The
+  queue/evaluation/security decisions and sample-adapter handoff below still apply.
+
+## Original handoff snapshot
+
 Reviewed against the working tree on 2026-11-08. Branch: `phase7-readiness`,
 created from `frontend-dev` with existing uncommitted Phase 6 files preserved.
 This is an implementation handoff, not a claim that hosted services are deployed.

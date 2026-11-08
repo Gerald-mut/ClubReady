@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { backend, message } from '../services/supabase'
 import Icon, { type IconName } from './Icons'
 import PwaStatus from './PwaStatus'
+import ActivitySync from './ActivitySync'
 const navigation: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: 'Home', icon: 'home' }, { to: '/play-proof', label: 'PlayProof', icon: 'ball' },
   { to: '/opportunities', label: 'Explore', icon: 'explore' }, { to: '/club-profile', label: 'Club', icon: 'club' },
@@ -37,7 +38,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <p className="mb-2 break-all text-xs text-muted">{session?.user.email}</p><Link className="section-row" to="/club-profile" onClick={() => setMenu(false)}>Club profile <Icon name="arrow" size={16} /></Link><Link className="section-row" to="/join" onClick={() => setMenu(false)}>Join a club <Icon name="arrow" size={16} /></Link><Link className="section-row" to="/evidence-package" onClick={() => setMenu(false)}>Evidence package <Icon name="arrow" size={16} /></Link><button disabled={busy} className="mt-2 w-full text-left text-sm" onClick={() => void signOut()}>{busy ? 'Signing out…' : 'Sign out'}</button>{error && <p role="alert" className="mt-2 text-sm">{error}</p>}
       </div>}</div>}
     </div></header>
-    <main className={`page-width ${publicPage ? 'public-main' : 'app-main'}`}>{children}</main>
+    <main className={`page-width ${publicPage ? 'public-main' : 'app-main'}`}>{children}{!publicPage && <details className="mx-auto mt-10 max-w-2xl border-t border-border pt-4"><summary className="cursor-pointer text-sm text-muted">Activity sync</summary><ActivitySync /></details>}</main>
     {!publicPage && <Navigation />}
     <PwaStatus />
   </>

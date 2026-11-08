@@ -10,6 +10,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const auth = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const reauthenticate = mode === 'sign-in' && new URLSearchParams(location.search).get('reauth') === '1'
   const returnTo = inviteReturn(location.search)
   const destination = returnTo || '/club-profile'
   const authQuery = returnTo ? `?next=${encodeURIComponent(returnTo)}` : ''
@@ -19,7 +20,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const submitting = useRef(false)
   if (auth.loading) return <p role="status">Restoring your session…</p>
   if (auth.recovery && mode !== 'reset-password') return <Navigate to="/reset-password" replace />
-  if (auth.session && !auth.recovery && (mode === 'sign-in' || mode === 'sign-up')) return <Navigate to={destination} replace />
+  if (auth.session && !auth.recovery && !reauthenticate && (mode === 'sign-in' || mode === 'sign-up')) return <Navigate to={destination} replace />
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (submitting.current) return

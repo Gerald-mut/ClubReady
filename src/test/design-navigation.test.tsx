@@ -9,6 +9,7 @@ import { AuthContext } from '../contexts/auth-state'
 import { ClubContext } from '../contexts/club-state'
 import type { Club } from '../types/club'
 const mock = vi.hoisted(() => ({ listActivities: vi.fn(), listDocuments: vi.fn(), listOpportunities: vi.fn(), signOut: vi.fn() }))
+vi.mock('../components/ActivitySync', () => ({ default: () => null }))
 vi.mock('../components/PwaStatus', () => ({ default: () => null }))
 vi.mock('../db/offline', () => ({ listActivities: mock.listActivities }))
 vi.mock('../services/documents', () => ({ listDocuments: mock.listDocuments }))

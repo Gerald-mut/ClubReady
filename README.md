@@ -4,9 +4,10 @@ Mobile-first club records for grassroots football in Kenya. Phase 3 adds email/p
 authentication, club onboarding/profile management, and private club documents to the
 existing React + TypeScript + Vite app.
 
-Phase 4 adds local-only PlayProof activity recording. Phase 6 adds a sourced opportunities
-catalogue, supplied-information comparisons and club application tracking. Readiness,
-evidence-package generation and cloud synchronization remain future work.
+Phase 4 adds local PlayProof activity recording; Phase 5 adds cloud sync with local
+copies retained. Phase 6 adds a sourced opportunities catalogue, supplied-information
+comparisons and club application tracking. Persisted readiness and evidence-package
+generation remain future work.
 
 ## Installation and local development
 
@@ -61,6 +62,8 @@ Apply these migrations in order:
 1. `supabase/migrations/202611070001_phase3.sql`: schema, RPC, RLS and initial Storage policies.
 2. `supabase/migrations/202611070002_document_storage.sql`: private bucket configuration
    and explicit member-read/admin-upload/admin-delete Storage policies.
+3. `supabase/migrations/202611070003_club_membership.sql`: membership and invitation RPCs.
+4. `supabase/migrations/202611080001_activity_sync.sql`: immutable activities, attachment metadata and private activity media.
 
 Together they provide:
 
@@ -168,13 +171,15 @@ npm test > .codex-logs/test.log 2>&1
 tail -n 30 .codex-logs/test.log
 ```
 
-Run both SQL security suites **only on a disposable Supabase test database**, after both migrations:
+Run all SQL security suites **only on a disposable Supabase test database**, after all migrations:
 
 ```sh
 mkdir -p .codex-logs
 psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f supabase/tests/phase3_security.sql \
-  -f supabase/tests/document_storage.sql > .codex-logs/sql-security.log 2>&1
+  -f supabase/tests/document_storage.sql \
+  -f supabase/tests/club_membership.sql \
+  -f supabase/tests/activity_sync.sql > .codex-logs/sql-security.log 2>&1
 # Only if the command fails:
 tail -n 30 .codex-logs/sql-security.log
 ```
@@ -260,17 +265,18 @@ included. Run `npm test` for frontend membership/join/auth-return coverage, then
 these flows with real accounts and email delivery against your Supabase test project.
 
 
-## PlayProof local activity recording (Phase 4)
+## PlayProof activity recording and cloud sync (Phase 5)
 
 Open the app online, sign in, and load your club before going offline. Record training,
 matches, tournaments, community or other activities at `/play-proof`. The date,
 location, title and whole participant count (at least 1) are required; notes and up to
 three images are optional. Images are resized and encoded as JPEG at no more than
 1 MiB each. Save failures retain the form for retry. Records always start as **Saved
-locally**, even online. There is no upload or cloud synchronization in this phase.
-Unsynced records can be edited or deleted; uploading/synced records are locked.
+locally**. Online records then sync automatically. Records can be edited or deleted
+until their first sync attempt. Once sync starts they stay unchanged, including
+after failure, because a server write may have succeeded before its response was lost.
 
-The client-generated `crypto.randomUUID()` is the permanent activity ID for future
+The client-generated `crypto.randomUUID()` is the permanent activity ID for
 server idempotency. Edits preserve both ID and creation timestamp. Activity metadata
 and image Blobs commit atomically to separate IndexedDB tables. Records survive app
 closure but are device/browser specific; clearing site data, private browsing cleanup,
@@ -278,10 +284,12 @@ or browser storage eviction can remove them. Logging out hides local records rat
 than deleting them. Cached club membership supports local access only and does not
 establish current server authorization; server-backed features still enforce RLS.
 
-Dexie database `clubready-254` is now schema **2**. Version 1 remains declared so
+Dexie database `clubready-254` is now schema **3**. Version 1 remains declared so
 existing installations upgrade in place. Version 2 preserves activity IDs, maps
 `clubId`/`occurredAt` to `club_id`/`date`, adds status and detail defaults, adds Blob
 attachments and account-keyed club selections, and removes the unused pending outbox.
+Version 3 adds persisted attempts, retry deadlines and errors, and recovers interrupted
+uploads without changing IDs or image Blobs.
 Legacy rows without an owner remain retained but hidden; do not infer or assign an
 owner automatically. Future changes must add a new version and explicit upgrade
 with migration tests, preserving IDs and existing Blobs. Never delete/recreate the
@@ -296,8 +304,10 @@ Wait for “ClubReady is ready to open offline” before disconnecting.
 Manual acceptance: sign in and open PlayProof online, enable airplane mode, save an
 activity with images, close all app tabs, then reopen `/play-proof` while still
 offline. Verify the entry, images and **Saved locally** badge remain; edit and delete
-while offline, reopen and verify those changes persist. Reconnect and verify no
-activity is uploaded. Offline access requires a restorable signed-in session; an
+while offline, reopen and verify those changes persist. Reconnect and verify each
+remaining activity becomes **Synced** with exactly one cloud row per UUID. Repeat
+**Sync now** and confirm row/object counts stay unchanged. Verify images and history
+remain readable after going offline again. Offline access requires a restorable signed-in session; an
 expired session may require reconnecting to authenticate.
 
 `src/test/activities.test.tsx` uses fake-indexeddb for database reopen persistence,
@@ -307,13 +317,51 @@ after remount. Real service-worker installation and device airplane mode still n
 the manual browser acceptance above.
 
 
+### Sync setup and behavior
+
+Apply `supabase/migrations/202611080001_activity_sync.sql` after the three existing
+migrations. Run `supabase/tests/activity_sync.sql` with the existing SQL suites
+against a disposable database. The private `activity-media` bucket is provisioned
+by the migration with JPEG/PNG and 5 MiB limits; recorder images remain compressed
+JPEGs of at most 1 MiB. Paths are `{club_id}/{activity_id}/{attachment_id}.jpg`.
+
+Sync runs on save, when reconnecting, every 30 seconds while the app is open and
+online, and through **Sync now** or **Retry sync**. Automatic retries respect a
+persisted exponential delay of 1 second up to 5 minutes, checked by those triggers;
+manual retry bypasses the delay. Concurrent triggers share one promise. Browsers
+with Web Locks also serialize sync between tabs. No Background Sync API is used.
+
+Images upload first without overwrite. An existing image is downloaded and checked
+against local bytes. Activity and attachment inserts ignore duplicate UUIDs, then
+server data is re-read and compared before the local activity becomes **Synced**.
+Partial failures retain all metadata and Blobs for retry. Activity rows can appear
+before attachment metadata is complete; **Synced** requires both to be confirmed.
+No local activity or photo is deleted by sync. Session expiry pauses uploads and
+offers **Sign in again**. Account/club changes stop later operations from the old
+run; records belonging to other accounts or clubs are never selected for upload.
+
+The collapsible Activity sync section shows global sync progress/errors and each entry shows its status and
+retry error. Orphan uploads remain private; trusted cleanup and evidence linking
+are future work. This phase does not pull another device's history into IndexedDB.
+
+Frontend coverage includes lost responses after commit, duplicate retries, partial
+attachment/metadata failures, reopen persistence, offline/online and interval
+triggers, single-flight execution, auth expiry, account changes, cloud mismatches,
+SDK request options, UI badges and retry/re-login controls. Before deployment, use
+real Supabase accounts and a mobile browser to repeat airplane-mode acceptance,
+interrupt a request after upload, expire the session mid-sync, retry repeatedly,
+and confirm one row per UUID and unchanged image bytes. Confirm cross-club denial
+and actual Storage MIME/size enforcement through the Storage API.
+
+
 ## Opportunities catalogue and readiness (Phase 6)
 
 Apply these after the three Phase 3/3.5 migrations, in this order:
 
-1. `supabase/migrations/202611080002_opportunities.sql`
-2. `supabase/migrations/202611080003_opportunity_assessments.sql`
-3. Run `supabase/seeds/opportunities.sql` through a trusted database connection.
+1. `supabase/migrations/202611080001_activity_sync.sql` (Phase 5 prerequisite)
+2. `supabase/migrations/202611080002_opportunities.sql`
+3. `supabase/migrations/202611080003_opportunity_assessments.sql`
+4. Run `supabase/seeds/opportunities.sql` through a trusted database connection.
 
 For a hosted project, run the new migration and seed in that project's SQL Editor;
 frontend deployment does not seed Supabase. Existing installations that already

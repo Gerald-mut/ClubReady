@@ -1,0 +1,21 @@
+[Unit]
+Description=ClubReady bounded readiness worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=clubready-readiness
+Group=clubready-readiness
+WorkingDirectory=/opt/clubready
+Environment=PGSERVICE=clubready-readiness
+Environment=PGSERVICEFILE=/etc/clubready/readiness-service.conf
+Environment=PGPASSFILE=/etc/clubready/readiness.pgpass
+ExecStart=/usr/bin/python3 /opt/clubready/scripts/readiness/run.py --max-calls 40 --budget 45
+TimeoutStartSec=55
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictSUIDSGID=true
+UMask=0077

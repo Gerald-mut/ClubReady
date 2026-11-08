@@ -52,20 +52,20 @@ export default function AuthPage({ mode }: { mode: Mode }) {
     finally { submitting.current = false; setBusy(false) }
   }
   const reset = mode === 'reset-password'
-  return <section className="mx-auto max-w-md bg-white p-6 sm:p-8 rounded-xl border border-slate-200">
-    <h1 className="text-2xl font-bold">{titles[mode]}</h1>
-    {error && <p role="alert" className="mt-4 text-red-700">{error}</p>}
+  return <section className="auth-form">
+    <h1 className="page-title">{titles[mode]}</h1>
+    {error && <p role="alert" className="mt-4 text-ink">{error}</p>}
     {auth.error && <p role="alert">{auth.error}</p>}
-    {notice && <p role="status" className="mt-4 text-green-800">{notice}</p>}
+    {notice && <p role="status" className="mt-4 text-sm text-ink">{notice}</p>}
     {reset && !auth.session ? <p className="mt-4">Open the password reset link from your email. If it has expired, request another below.</p> : <form className="mt-6 space-y-4" onSubmit={event => void submit(event)}>
       {!reset && <label className="field">Email<input name="email" type="email" autoComplete="email" required maxLength={254} /></label>}
       {mode !== 'forgot-password' && <label className="field">Password<input name="password" type="password" required minLength={8} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} /></label>}
       {reset && <label className="field">Confirm password<input name="confirm" type="password" required minLength={8} autoComplete="new-password" /></label>}
       <button className="button" disabled={busy}>{busy ? 'Please wait…' : titles[mode]}</button>
     </form>}
-    <div className="mt-6 flex flex-wrap gap-4 text-sm text-green-800 underline">
-      <Link to={`/sign-in${authQuery}`}>Sign in</Link><Link to={`/sign-up${authQuery}`}>Create account</Link><Link to="/forgot-password">Forgot password</Link>
-      {reset && notice && <Link to="/club-profile">Continue to club</Link>}
+    <div className="mt-6 flex flex-wrap gap-x-5 gap-y-1 text-sm text-accent-readable underline">
+      <Link className="inline-flex min-h-11 items-center" to={`/sign-in${authQuery}`}>Sign in</Link><Link className="inline-flex min-h-11 items-center" to={`/sign-up${authQuery}`}>Create account</Link><Link className="inline-flex min-h-11 items-center" to="/forgot-password">Forgot password</Link>
+      {reset && notice && <Link className="inline-flex min-h-11 items-center" to="/club-profile">Continue to club</Link>}
     </div>
   </section>
 }

@@ -39,24 +39,24 @@ export default function Documents({ clubId, userId, admin }: { clubId: string; u
       form.reset(); setNotice('Document supplied. It has not been independently verified.'); setLoading(true); setVersion(value => value + 1)
     })
   }
-  return <section className="mt-10 border-t border-slate-200 pt-6" aria-label="Club documents" aria-busy={busy || loading}>
-    <h2 className="text-xl font-semibold">Club documents</h2><p className="mt-2 text-sm text-slate-600">Private to club members. Supplied documents have not been independently verified.</p>
+  return <section id="club-documents" className="scroll-mt-6 mt-10 border-t border-border pt-6" aria-label="Club documents" aria-busy={busy || loading}>
+    <h2 className="text-xl font-semibold">Club documents</h2><p className="mt-2 text-sm text-muted">Private to club members. Supplied documents have not been independently verified.</p>
     {admin && <form className="mt-5 grid gap-4 max-w-xl" onSubmit={upload}>
       <label className="field">Document type<select name="document_type">{Object.entries(documentTypes).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
       <label className="field">File (PDF, JPEG or PNG, up to 5 MB)<input name="file" type="file" accept="application/pdf,image/jpeg,image/png" required /></label>
       <button className="button justify-self-start" disabled={busy}>{busy ? 'Please wait…' : 'Upload document'}</button>
     </form>}
-    {error && <div role="alert" className="mt-4 text-red-700">{error} <button className="underline" onClick={() => { setError(''); setLoading(true); setVersion(value => value + 1) }}>Reload documents</button></div>}
-    {notice && <p role="status" className="mt-4 text-green-800">{notice}</p>}
-    {link && <p className="mt-4"><a className="text-green-800 underline" href={link.url} target="_blank" rel="noopener noreferrer">{link.download ? 'Download' : 'Open'} {link.name}</a><span className="block text-sm text-slate-500">This private link expires in one minute.</span></p>}
-    {loading ? <p role="status" className="mt-4">Loading documents…</p> : documents.length === 0 ? <p className="mt-4 text-slate-600">No documents supplied yet.</p> : <ul className="mt-4 divide-y divide-slate-200">
+    {error && <div role="alert" className="mt-4 text-ink">{error} <button className="underline" onClick={() => { setError(''); setLoading(true); setVersion(value => value + 1) }}>Reload documents</button></div>}
+    {notice && <p role="status" className="mt-4 text-sm text-ink">{notice}</p>}
+    {link && <p className="mt-4"><a className="text-accent-readable underline" href={link.url} target="_blank" rel="noopener noreferrer">{link.download ? 'Download' : 'Open'} {link.name}</a><span className="block text-sm text-muted">This private link expires in one minute.</span></p>}
+    {loading ? <p role="status" className="mt-4 text-sm text-ink">Loading documents…</p> : documents.length === 0 ? <p className="mt-4 text-muted">No documents supplied yet.</p> : <ul className="mt-4 divide-y divide-border">
       {documents.map(document => <li key={document.id} className="py-4">
-        <p className="font-medium break-words">{document.file_name}</p><p className="text-sm text-slate-600">{documentTypes[document.document_type]} · {(document.file_size / 1024).toFixed(0)} KB · Supplied</p>
-        <div className="mt-3 flex flex-wrap gap-4 text-sm text-green-800">
+        <p className="font-medium break-words">{document.file_name}</p><p className="text-sm text-muted">{documentTypes[document.document_type]} · {(document.file_size / 1024).toFixed(0)} KB · Supplied</p>
+        <div className="mt-3 flex flex-wrap gap-4 text-sm text-accent-readable">
           {[false, true].map(download => <button className="underline" disabled={busy} key={String(download)} onClick={() => void action(async () => { const url = await documentUrl(document, download); setLink({ url, download, name: document.file_name }) })}>{download ? 'Download' : 'View'}</button>)}
-          {admin && <button className="underline text-red-700" disabled={busy} onClick={() => setPendingDelete(document.id)}>Delete</button>}
+          {admin && <button className="underline text-ink" disabled={busy} onClick={() => setPendingDelete(document.id)}>Delete</button>}
         </div>
-        {pendingDelete === document.id && <div className="mt-3" role="group" aria-label="Confirm document deletion"><p>Delete {document.file_name}? This cannot be undone.</p><div className="mt-2 flex gap-4"><button disabled={busy} className="text-red-700 underline" onClick={() => void action(async () => { await deleteDocument(document); setPendingDelete(null); setNotice('Document deleted.'); setLoading(true); setVersion(value => value + 1) })}>Confirm delete</button><button disabled={busy} onClick={() => setPendingDelete(null)}>Cancel</button></div></div>}
+        {pendingDelete === document.id && <div className="mt-3" role="group" aria-label="Confirm document deletion"><p>Delete {document.file_name}? This cannot be undone.</p><div className="mt-2 flex gap-4"><button disabled={busy} className="text-ink underline" onClick={() => void action(async () => { await deleteDocument(document); setPendingDelete(null); setNotice('Document deleted.'); setLoading(true); setVersion(value => value + 1) })}>Confirm delete</button><button disabled={busy} onClick={() => setPendingDelete(null)}>Cancel</button></div></div>}
       </li>)}
     </ul>}
   </section>

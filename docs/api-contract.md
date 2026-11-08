@@ -1,5 +1,11 @@
 # Proposed API contract
 
+> Historical scaffold proposal. For the current app contracts and pending backend
+> integration, read [backend-handoff.md](backend-handoff.md). The activity payload
+> below predates Dexie v2; there is no active outbox or functional cloud sync.
+> Phase 7 workers must be privileged; a future user Recompute action is admin-only,
+> superseding the generic membership-only proposal below.
+
 Both Edge Function stubs return HTTP 501 with `{ "error": "Not implemented" }`.
 The following contract is planned, not deployed.
 

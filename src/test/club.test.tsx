@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '@supabase/supabase-js'
@@ -20,7 +21,7 @@ const session = { user: { id: 'user-a' } } as Session
 const auth = { session, loading: false, error: '', recovery: false, finishRecovery: vi.fn() }
 const refresh = vi.fn()
 function wrap(child: React.ReactNode, role: 'club_admin' | 'club_member' = 'club_admin') {
-  return render(<AuthContext.Provider value={auth}><ClubContext.Provider value={{ selection: { club, membership: { club_id: club.id, user_id: 'user-a', role, joined_at: '' } }, error: '', loading: false, refresh }}>{child}</ClubContext.Provider></AuthContext.Provider>)
+  return render(<MemoryRouter><AuthContext.Provider value={auth}><ClubContext.Provider value={{ selection: { club, membership: { club_id: club.id, user_id: 'user-a', role, joined_at: '' } }, error: '', loading: false, refresh }}>{child}</ClubContext.Provider></AuthContext.Provider></MemoryRouter>)
 }
 beforeEach(() => { Object.values(mock).forEach(fn => fn.mockReset()); mock.listDocuments.mockResolvedValue([]); refresh.mockReset() })
 describe('club management', () => {

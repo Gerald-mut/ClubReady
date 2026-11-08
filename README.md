@@ -4,10 +4,20 @@ Mobile-first club records for grassroots football in Kenya. Phase 3 adds email/p
 authentication, club onboarding/profile management, and private club documents to the
 existing React + TypeScript + Vite app.
 
-Phase 4 adds local-only PlayProof activity recording. Opportunity readiness,
+Phase 4 adds local-only PlayProof activity recording. Phase 6 adds a sourced opportunities
+catalogue, supplied-information comparisons and club application tracking. Readiness,
 evidence-package generation and cloud synchronization remain future work.
 
 ## Installation and local development
+
+Backend team: see the [app-wide integration handoff](docs/backend-handoff.md)
+for existing service contracts, deployment prerequisites, activity sync gaps and
+the deferred Phase 7 readiness engine requirements.
+
+Opportunity details include an opt-in **Readiness preview** with fictional sample
+requirements, statuses and supporting items. Admins can simulate a tournament
+through **Recompute sample assessment**. This preview does not use club evidence,
+create activities, save results or call a backend readiness service.
 
 Use Node.js **22.12+** and npm.
 
@@ -295,3 +305,76 @@ Blob storage, permanent IDs, ownership isolation, locked statuses, deletion,
 migration and validation. A component test saves offline and restores the history
 after remount. Real service-worker installation and device airplane mode still need
 the manual browser acceptance above.
+
+
+## Opportunities catalogue and readiness (Phase 6)
+
+Apply these after the three Phase 3/3.5 migrations, in this order:
+
+1. `supabase/migrations/202611080002_opportunities.sql`
+2. `supabase/migrations/202611080003_opportunity_assessments.sql`
+3. Run `supabase/seeds/opportunities.sql` through a trusted database connection.
+
+For a hosted project, run the new migration and seed in that project's SQL Editor;
+frontend deployment does not seed Supabase. Existing installations that already
+applied the first migration need only the second migration and refreshed seed.
+Local `supabase db reset` applies both and loads the configured seed automatically.
+
+The directory lists five programmes: SASDF, FIFA, Safaricom Chapa Dimba, UEFA and
+GlobalGiving. Search and filter by type, availability and country/scope. The old
+Laureus entry is archived without deleting its tracking. UUIDs and organiser/cycle
+slugs remain stable. Seed revision 2 is safe to rerun; it upgrades only earlier
+curation revisions and preserves subsequent trusted edits.
+
+Details show cycle-specific sources, rules, supporting documents, application
+steps and known verification gaps. Availability, eligibility and confirmed-document
+readiness are separate. Old calls never become open automatically. Stale reviews,
+unknown windows or unconfirmed routes suppress application links. GlobalGiving is
+a fundraising platform, not a direct grant. See `docs/opportunity-sources.md` for
+source-review results, including unverified Safaricom and GlobalGiving details.
+
+The deterministic readiness view uses optional self-reported boolean and aggregate
+answers, cleared on navigation/account/club/role changes. These are not saved to the
+club profile or sent to a new API. It uses the existing club-authorised evidence
+query; no assessment document copies or sensitive personal fields are stored.
+Missing or unverified information is unknown. Known contradictions of verified
+mandatory rules can yield an ineligible assessment under those answers; organiser
+approval is never implied. Supplied uploads have no validation status and cannot
+count as confirmed documents. Conditional documents are excluded when inapplicable.
+Local activity counts cover only this account, club and device and never prove
+programme frequency or legal compliance. Chapa Dimba identity/consent documents
+belong only on the organiser's platform; no such collection fields were added.
+
+Club administrators can save application status and bounded notes; members see
+tracking read-only. Saving never submits an application. Catalogue, document and
+tracking reads need connectivity; load errors offer retry, and failed saves retain
+drafts. Existing navigation, authentication, uploads and PlayProof are preserved.
+
+Maintainers curate via trusted SQL, not club-admin client writes. For a new cycle,
+create a new programme/cycle or increment rule versions and retire prior current
+rules; retain historical records and sources. Record official URL, publisher,
+location, cycle, verification date and next review date. Use needs_verification
+when a source is inaccessible. Add an application URL/open status only after
+checking a live official call and exact window. Trusted edits to catalogue, rules
+and requirements are recorded in `private.opportunity_audit`. Repeat seeding does
+not overwrite revision-2 records; future seed revisions require deliberate review.
+
+Run `npm test`, `npm run lint` and `npm run build`. On a disposable database, apply
+all migrations and seed twice, then run `supabase/tests/opportunities.sql`,
+`supabase/tests/opportunity_assessments.sql` and the three earlier SQL suites.
+Frontend tests mock data-access boundaries. Before deployment, check real two-club
+Supabase permissions, first/subsequent tracking saves, source links, mobile layout,
+keyboard filters, offline recovery and the new hosted migration/seed. No hosted
+migration, browser/device acceptance or document validation is claimed.
+
+
+## Minimalist interface
+
+The visual system follows `docs/design-spec.md`: white canvas, near-black actions,
+quiet grey cards and small muted-orange accents. Shared tokens and controls live in
+`src/index.css`; `AppShell`, `Icons` and `ui` provide reusable layout and primitives.
+Home (`/`) shows real scoped statistics, a PlayProof action and catalogue previews.
+The bottom navigation links to Home, PlayProof, Explore and Club; desktop uses the
+same links in the header. Account actions, joining and evidence-package access are
+available through the profile menu and Club page. Auth routes have no signed-in
+navigation. Existing activity counts remain account/club/device-local.

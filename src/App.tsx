@@ -2,6 +2,7 @@ import { NavLink, Navigate, Route, Routes, Link } from 'react-router-dom'
 import ClubProfile from './pages/ClubProfile'
 import PlayProof from './pages/PlayProof'
 import Opportunities from './pages/Opportunities'
+import OpportunityDetail from './pages/Opportunities/Detail'
 import EvidencePackage from './pages/EvidencePackage'
 import PwaStatus from './components/PwaStatus'
 import AuthPage from './pages/auth/AuthPage'
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/club-profile" element={<ClubProfile />} />
         <Route path="/play-proof" element={<PlayProof />} />
         <Route path="/opportunities" element={<Opportunities />} />
+        <Route path="/opportunities/:id" element={<OpportunityDetail />} />
         <Route path="/evidence-package" element={<EvidencePackage />} />
         </Route>
         <Route path="*" element={<section><h1 className="text-2xl font-bold">Page not found</h1><Link className="mt-4 inline-block text-green-800 underline" to="/">Return to ClubReady</Link></section>} />

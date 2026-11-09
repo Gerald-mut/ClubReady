@@ -5,6 +5,12 @@ import subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[2]
 body=(root/'supabase/migrations/202611080006_readiness_worker.sql').read_text().replace('begin;','',1).rsplit('commit;',1)[0]
+# Roles are cluster-wide: other disposable databases can retain worker ACLs.
+# Replay database objects with the existing role rather than dropping shared
+# infrastructure. Keep the historical migration unchanged; fresh creation is
+# covered by the clean migration replay in CI.
+assert body.count('create role readiness_worker nologin;') == 1
+body=body.replace('create role readiness_worker nologin;', '')
 sql=r'''
 \set ON_ERROR_STOP on
 begin;
@@ -23,7 +29,6 @@ drop function private.readiness_club_event();
 drop function private.readiness_catalogue_event();
 drop table private.readiness_clubs,private.readiness_catalogue,private.readiness_settings;
 drop function if exists public.readiness_health();
-drop role readiness_worker;
 drop index public.processing_jobs_club_generation;
 insert into public.clubs(id,name,county) values('c1000000-0000-0000-0000-000000000001','Populated predecessor','Nairobi');
 insert into public.processing_jobs(club_id,generation) values('c1000000-0000-0000-0000-000000000001',9);

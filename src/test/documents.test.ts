@@ -1,3 +1,4 @@
+import { subscribeReadiness } from '../services/readiness-events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { deleteDocument, documentUrl, uploadDocument, validateFile } from '../services/documents'
 import type { Evidence } from '../types/club'
@@ -70,4 +71,18 @@ describe('private document service', () => {
     mock.single.mockResolvedValue({ error: new Error('Metadata unavailable') })
     await expect(deleteDocument(document)).rejects.toThrow('Retry deletion')
   })
+})
+
+it('invalidates readiness after document metadata commits and after deletion, never on failure', async () => {
+  const listener = vi.fn(); const unsubscribe = subscribeReadiness(listener)
+  const file = new File(['pdf'], 'test.pdf', { type: 'application/pdf' })
+  try {
+    mock.insert.mockResolvedValueOnce({ error: new Error('Denied') })
+    await expect(uploadDocument('club-a', 'user-a', 'other', file)).rejects.toThrow('Denied')
+    expect(listener).not.toHaveBeenCalled()
+    await uploadDocument('club-a', 'user-a', 'other', file)
+    expect(listener).toHaveBeenCalledExactlyOnceWith('club-a')
+    await deleteDocument({ ...document, club_id: 'club-a' })
+    expect(listener).toHaveBeenCalledTimes(2)
+  } finally { unsubscribe() }
 })

@@ -1,3 +1,4 @@
+import { subscribeReadiness } from '../services/readiness-events'
 import { Blob as NodeBlob } from 'node:buffer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalDatabase, db, deleteActivity, saveActivity } from '../db/offline'
@@ -29,6 +30,24 @@ async function seed(photo = false) {
 beforeEach(() => { online = true; clock = 1000 })
 afterEach(async () => { vi.useRealTimers(); await db.delete(); await db.open() })
 describe('activity sync engine', () => {
+  it('bounds automatic failures, retains the queue and permits manual retry', async () => {
+    const local = await seed(true), cloud = server()
+    cloud.transport.insertActivity.mockRejectedValue(new Error('offline'))
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await cloud.engine.run()
+      clock += 300_001
+    }
+    await cloud.engine.run()
+    expect(cloud.transport.insertActivity).toHaveBeenCalledTimes(5)
+    expect(await db.attachments.count()).toBe(1)
+    expect(await db.activities.get(local.id)).toMatchObject({ sync_status: 'failed', attempt_count: 5 })
+    cloud.transport.insertActivity.mockImplementation(async row => { cloud.rows.set(row.id, row) })
+    await cloud.engine.run(true)
+    expect(cloud.rows.size).toBe(1)
+    expect(cloud.photos.size).toBe(1)
+    expect((await db.activities.get(local.id))?.sync_status).toBe('synced')
+  })
+
   it('retries an accepted write with a lost response and confirms exactly one row', async () => {
     const local = await seed(), cloud = server()
     cloud.transport.insertActivity.mockImplementationOnce(async row => { cloud.rows.set(row.id, row); throw new Error('connection lost after commit') })
@@ -148,6 +167,10 @@ describe('activity sync engine', () => {
     await seed(); window.dispatchEvent(new Event('online'))
     await new Promise(resolve => setTimeout(resolve, 40))
     expect(cloud.rows.size).toBe(2)
+    // A new app lifecycle immediately retries work retained while triggers stopped.
+    const reopened = startSyncTriggers(() => cloud.engine.run(), window, 20)
+    await vi.waitFor(() => expect(cloud.rows.size).toBe(3))
+    reopened()
   })
   it('upgrades version 2 while preserving UUIDs and image blobs', async () => {
     const name = `sync-migration-${crypto.randomUUID()}`
@@ -163,4 +186,15 @@ describe('activity sync engine', () => {
       expect((await upgraded.attachments.get('image'))?.blob.size).toBe(5)
     } finally { await upgraded.delete() }
   })
+})
+
+it('invalidates readiness only after confirmed activity sync, preserving failed retries', async () => {
+  await seed(); const cloud = server(); const invalidated = vi.fn(); const unsubscribe = subscribeReadiness(invalidated)
+  const unsubscribeBrokenView = subscribeReadiness(() => { throw new Error('View failed') })
+  try {
+    cloud.transport.insertActivity.mockRejectedValueOnce(new Error('network'))
+    await cloud.engine.run(); expect(invalidated).not.toHaveBeenCalled()
+    await cloud.engine.run(true); expect(invalidated).toHaveBeenCalledExactlyOnceWith('club-a')
+    await cloud.engine.run(); expect(invalidated).toHaveBeenCalledTimes(1)
+  } finally { unsubscribe(); unsubscribeBrokenView() }
 })

@@ -19,21 +19,36 @@ function ClubSession({ children, userId }: { children: ReactNode; userId?: strin
   useEffect(() => {
     let active = true
     if (!userId) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 8000)
     const restore = async () => {
       if (!navigator.onLine) {
         const cached = await db.selections.get(userId)
         if (!cached) throw new Error('Open your club online once before using PlayProof offline.')
         return cached.selection
       }
-      const selection = await loadMembership(userId, preferredClub)
+      let selection: Selection
+      try { selection = await loadMembership(userId, preferredClub, controller.signal) }
+      catch (failure) {
+        // navigator.onLine can report true without a working connection. Only
+        // transport failures may restore this account's cached offline profile;
+        // a server denial or missing live membership must remain authoritative.
+        const serverCode = typeof failure === 'object' && failure && 'code' in failure && typeof failure.code === 'string' ? failure.code : undefined
+        const transportFailure = failure instanceof DOMException && ['AbortError', 'TimeoutError'].includes(failure.name) || /Failed to fetch|NetworkError|Load failed|AbortError|TimeoutError/i.test(message(failure))
+        if (!preferredClub && !serverCode && transportFailure) {
+          const cached = await db.selections.get(userId)
+          if (cached) return cached.selection
+        }
+        throw failure
+      }
       if (selection) await db.selections.put({ user_id: userId, selection })
       else await db.selections.delete(userId)
       return selection
     }
     void restore().then(selection => {
       if (active) setState({ version, selection, error: '' })
-    }).catch(error => { if (active) setState({ version, selection: null, error: message(error) }) })
-    return () => { active = false }
+    }).catch(error => { if (active) setState({ version, selection: null, error: message(error) }) }).finally(() => window.clearTimeout(timer))
+    return () => { active = false; window.clearTimeout(timer); controller.abort() }
   }, [userId, version, preferredClub])
   const current = state.version === version
   return <ClubContext.Provider value={{ selection: state.selection, error: current ? state.error : '', loading: !!userId && !current && !state.selection, refresh }}>{children}</ClubContext.Provider>

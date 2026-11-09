@@ -30,7 +30,15 @@ insert into public.processing_jobs(club_id,generation) values('c1000000-0000-000
 create temporary table worker_before as select jsonb_agg(to_jsonb(c) order by id) snapshot from public.clubs c;
 '''
 sql+=body+r'''
-select private.prepare_readiness(1);
+-- Existing clubs may sort before the fixture. Exercise bounded batches until
+-- each possible predecessor has had a turn, preserving the one-club limit.
+do $$ declare n integer; prepared integer; begin
+ for n in 1..(select count(*) from public.clubs) loop
+  prepared:=private.prepare_readiness(1);
+  if prepared>1 then raise exception 'Bootstrap exceeded one-club batch'; end if;
+  exit when exists(select 1 from private.readiness_clubs where club_id='c1000000-0000-0000-0000-000000000001');
+ end loop;
+end $$;
 do $$ begin
  if (select snapshot from worker_before) is distinct from (select jsonb_agg(to_jsonb(c) order by id) from public.clubs c)
  then raise exception 'Upgrade changed source clubs'; end if;

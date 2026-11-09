@@ -1,3 +1,5 @@
+import { secureUUID } from '../../services/uuid'
+import SupportingActivity from '../../components/SupportingActivity'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useClub } from '../../hooks/useClub'
@@ -7,7 +9,7 @@ import { useSyncState } from '../../hooks/useSyncState'
 import { syncEngine } from '../../services/sync'
 
 const blank = (): ActivityInput => ({ activity_type: 'training', title: '', date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10), location: '', participants_count: 1, notes: '' })
-const labels = { saved_locally: 'Saved locally', pending_sync: 'Pending sync', uploading: 'Uploading', synced: 'Synced', failed: 'Failed - retry' }
+const labels = { saved_locally: 'Saved locally', pending_sync: 'Syncing', uploading: 'Syncing', synced: 'Synced', failed: 'Sync failed - retry' }
 function Photo({ attachment }: { attachment: Attachment }) {
   const element = useRef<HTMLImageElement>(null)
   useEffect(() => { const value = URL.createObjectURL(attachment.blob); if (element.current) element.current.src = value; return () => URL.revokeObjectURL(value) }, [attachment])
@@ -44,7 +46,8 @@ export function ActivityRecorder({ userId, clubId }: { userId: string; clubId: s
   }
   const field = 'form-control'
   return <section className="mx-auto max-w-2xl space-y-6">
-    <div><h1 className="page-title">PlayProof</h1><p role="status" className="mt-3 text-sm text-muted">{online ? 'Online · Activities sync automatically' : 'Offline · Activities will sync when you reconnect'}. Local copies stay on this device.</p><p className="text-sm text-muted">Open this app online once to prepare offline access. Clearing browser data removes local records.</p></div>
+    <div><h1 className="page-title">PlayProof</h1><p role="status" className="mt-3 text-sm text-muted">{online ? 'Online · Activities sync automatically' : 'Offline · Activities will sync when you reconnect with ClubReady open'}. Local copies stay on this device.</p><p className="text-sm text-muted">Open this app online once to prepare offline access. Clearing browser data removes local records.</p></div>
+    {sync.revision > 0 && <p className="text-sm text-muted">After a successful sync, readiness reassessment may take time.</p>}
     {error && <p role="alert" className="text-ink">{error}</p>}{notice && <p role="status">{notice}</p>}
     <form onSubmit={event => void submit(event)} noValidate className="card space-y-5">
       <h2 className="text-xl font-semibold">{id ? 'Edit activity' : 'Record activity'}</h2>
@@ -59,7 +62,7 @@ export function ActivityRecorder({ userId, clubId }: { userId: string; clubId: s
         const files = Array.from(e.target.files ?? []); e.target.value = ''; setError('')
         if (photos.length + files.length > 3) { setError('Use at most 3 images.'); return }
         setBusy(true)
-        try { const added = await Promise.all(files.map(async file => ({ id: crypto.randomUUID(), activity_id: id ?? '', name: file.name, blob: await compressImage(file) }))); setPhotos(previous => [...previous, ...added]) }
+        try { const added = await Promise.all(files.map(async file => ({ id: secureUUID(), activity_id: id ?? '', name: file.name, blob: await compressImage(file) }))); setPhotos(previous => [...previous, ...added]) }
         catch (failure) { setError(failure instanceof Error ? failure.message : 'Unable to prepare images.') }
         finally { setBusy(false) }
       }} /></label>
@@ -88,5 +91,5 @@ export function ActivityRecorder({ userId, clubId }: { userId: string; clubId: s
 export default function PlayProof() {
   const { session } = useAuth(); const { selection } = useClub()
   if (!session || !selection) return null
-  return <ActivityRecorder key={`${session.user.id}:${selection.club.id}`} userId={session.user.id} clubId={selection.club.id} />
+  return <><SupportingActivity key={`${session.user.id}:${selection.club.id}:${selection.membership.role}`} clubId={selection.club.id} /><ActivityRecorder key={`${session.user.id}:${selection.club.id}`} userId={session.user.id} clubId={selection.club.id} /></>
 }

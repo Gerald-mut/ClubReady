@@ -1,3 +1,4 @@
+import { authRedirect } from '../../services/auth-redirect'
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { inviteReturn } from '../../services/invite-return'
@@ -36,12 +37,12 @@ export default function AuthPage({ mode }: { mode: Mode }) {
         if (result.error) throw result.error
         navigate(destination, { replace: true })
       } else if (mode === 'sign-up') {
-        const result = await client.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/sign-in${authQuery}` } })
+        const result = await client.auth.signUp({ email, password, options: { emailRedirectTo: authRedirect('/sign-in', authQuery) } })
         if (result.error) throw result.error
         if (result.data.session) navigate(destination, { replace: true })
         else setNotice('Check your email to confirm your account, then sign in. If you already have an account, sign in or reset your password.')
       } else if (mode === 'forgot-password') {
-        const result = await client.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` })
+        const result = await client.auth.resetPasswordForEmail(email, { redirectTo: authRedirect('/reset-password') })
         if (result.error) throw result.error
         setNotice('If an account exists for this email, you will receive a password reset link.')
       } else {

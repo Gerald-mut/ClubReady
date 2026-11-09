@@ -37,14 +37,14 @@ function flow(path = '/join', signedIn = true, loading = false) {
 it('lists roles read-only for members and never loads invites', async () => {
   members(false)
   expect(screen.getByRole('status')).toHaveTextContent('Loading members')
-  expect(await screen.findByText('member-b')).toBeInTheDocument()
+  expect(await screen.findByText('Account reference: member-b')).toBeInTheDocument()
   expect(screen.getByText('Club administrator')).toBeInTheDocument(); expect(screen.getByText('Club member')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Remove member' })).not.toBeInTheDocument()
   expect(mock.listInvites).not.toHaveBeenCalled()
 })
 it('creates an invite with the chosen role and copies its one-time link', async () => {
-  const user = userEvent.setup(); members(); await screen.findByText('member-b')
+  const user = userEvent.setup(); members(); await screen.findByText('Account reference: member-b')
   await user.selectOptions(screen.getByLabelText('Invite role'), 'club_admin')
   await user.click(screen.getByRole('button', { name: 'Invite' }))
   expect(mock.createInvite).toHaveBeenCalledWith('club-a', 'club_admin')
@@ -60,7 +60,7 @@ it('revokes listed invitations', async () => {
   expect(await screen.findByRole('status')).toHaveTextContent('Invite revoked')
 })
 it('requires confirmation for role changes and removal', async () => {
-  const user = userEvent.setup(); members(); await screen.findByText('member-b')
+  const user = userEvent.setup(); members(); await screen.findByText('Account reference: member-b')
   await user.click(screen.getByRole('button', { name: 'Promote to administrator' }))
   expect(mock.setMemberRole).not.toHaveBeenCalled()
   await user.click(screen.getByRole('button', { name: 'Cancel' })); expect(mock.setMemberRole).not.toHaveBeenCalled()
@@ -68,16 +68,17 @@ it('requires confirmation for role changes and removal', async () => {
   await user.click(screen.getByRole('button', { name: 'Confirm change' }))
   expect(mock.setMemberRole).toHaveBeenCalledWith('club-a', 'member-b', 'club_admin')
   await waitFor(() => expect(screen.queryByRole('group')).not.toBeInTheDocument())
-  const row = screen.getByText('member-b').closest('li')!
+  const row = screen.getByText('Account reference: member-b').closest('li')!
   await user.click(within(row).getByRole('button', { name: 'Remove member' }))
   expect(mock.removeMember).not.toHaveBeenCalled()
   await user.click(screen.getByRole('button', { name: 'Confirm change' }))
   expect(mock.removeMember).toHaveBeenCalledWith('club-a', 'member-b')
 })
 it('preserves last-admin errors and refreshes auth membership after a successful own change', async () => {
+  mock.listMembers.mockResolvedValue([...people, { ...people[1], user_id: 'admin-c', role: 'club_admin' }])
   mock.setMemberRole.mockRejectedValueOnce(new Error('Cannot demote the last administrator'))
-  const user = userEvent.setup(); members(); await screen.findByText('member-b')
-  await user.click(screen.getByRole('button', { name: 'Demote to member' }))
+  const user = userEvent.setup(); members(); await screen.findByText('Account reference: member-b')
+  await user.click(screen.getAllByRole('button', { name: 'Demote to member' })[0])
   await user.click(screen.getByRole('button', { name: 'Confirm change' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('last administrator')
   expect(refresh).not.toHaveBeenCalled()
@@ -88,7 +89,7 @@ it('retries failed loading and reports failed invite creation', async () => {
   mock.listMembers.mockRejectedValueOnce(new Error('Network unavailable')); mock.createInvite.mockRejectedValue(new Error('Invite denied'))
   const user = userEvent.setup(); members()
   expect(await screen.findByRole('alert')).toHaveTextContent('Network unavailable')
-  await user.click(screen.getByRole('button', { name: 'Reload members' })); await screen.findByText('member-b')
+  await user.click(screen.getByRole('button', { name: 'Reload members' })); await screen.findByText('Account reference: member-b')
   await user.click(screen.getByRole('button', { name: 'Invite' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Invite denied')
   expect(screen.queryByLabelText('Invite link')).not.toBeInTheDocument()
@@ -158,4 +159,13 @@ it('disables join submission while acceptance is pending', async () => {
   expect(mock.acceptInvite).toHaveBeenCalledTimes(1)
   finish('club-a')
   expect(await screen.findByRole('status')).toHaveTextContent('You have joined')
+})
+
+it('disables removal and demotion of the sole administrator', async () => {
+  members()
+  await screen.findByText('Account reference: admin-a')
+  const row = screen.getByText('Account reference: admin-a').closest('li')!
+  expect(within(row).getByRole('button', { name: 'Demote to member' })).toBeDisabled()
+  expect(within(row).getByRole('button', { name: 'Remove member' })).toBeDisabled()
+  expect(screen.getByText('You')).toBeInTheDocument()
 })

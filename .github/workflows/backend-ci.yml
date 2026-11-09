@@ -41,6 +41,14 @@ jobs:
         run: supabase db reset --yes
       - name: Run SQL assertions and pgTAP tests
         run: bash scripts/ci/test-backend.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Real local app and browser integration
+        run: npm run test:integration
       - name: Stop isolated local Supabase
         if: always()
         run: supabase stop --no-backup

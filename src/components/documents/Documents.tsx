@@ -36,7 +36,7 @@ export default function Documents({ clubId, userId, admin }: { clubId: string; u
     const file = data.get('file') as File
     void action(async () => {
       await uploadDocument(clubId, userId, data.get('document_type') as Evidence['document_type'], file)
-      form.reset(); setNotice('Document supplied. It has not been independently verified.'); setLoading(true); setVersion(value => value + 1)
+      form.reset(); setNotice('Document supplied. It has not been independently verified. Readiness reassessment may take time.'); setLoading(true); setVersion(value => value + 1)
     })
   }
   return <section id="club-documents" className="scroll-mt-6 mt-10 border-t border-border pt-6" aria-label="Club documents" aria-busy={busy || loading}>
@@ -50,7 +50,7 @@ export default function Documents({ clubId, userId, admin }: { clubId: string; u
     {notice && <p role="status" className="mt-4 text-sm text-ink">{notice}</p>}
     {link && <p className="mt-4"><a className="text-accent-readable underline" href={link.url} target="_blank" rel="noopener noreferrer">{link.download ? 'Download' : 'Open'} {link.name}</a><span className="block text-sm text-muted">This private link expires in one minute.</span></p>}
     {loading ? <p role="status" className="mt-4 text-sm text-ink">Loading documents…</p> : documents.length === 0 ? <p className="mt-4 text-muted">No documents supplied yet.</p> : <ul className="mt-4 divide-y divide-border">
-      {documents.map(document => <li key={document.id} className="py-4">
+      {documents.map(document => <li id={`document-${document.id}`} key={document.id} className="py-4">
         <p className="font-medium break-words">{document.file_name}</p><p className="text-sm text-muted">{documentTypes[document.document_type]} · {(document.file_size / 1024).toFixed(0)} KB · Supplied</p>
         <div className="mt-3 flex flex-wrap gap-4 text-sm text-accent-readable">
           {[false, true].map(download => <button className="underline" disabled={busy} key={String(download)} onClick={() => void action(async () => { const url = await documentUrl(document, download); setLink({ url, download, name: document.file_name }) })}>{download ? 'Download' : 'View'}</button>)}

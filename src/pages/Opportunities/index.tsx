@@ -42,14 +42,15 @@ function Catalogue() {
     </div>
     {loading && <p role="status" className="mt-6">Loading opportunities…</p>}
     {error && <div role="alert" className="mt-6 text-ink">{error} <button className="underline" onClick={() => { setLoading(true); setError(''); setAttempt(value => value + 1) }}>Retry</button></div>}
-    {!loading && !error && (filtered.length ? <ul className="mt-8 grid gap-5 md:grid-cols-2">{visible.map(row => <li key={row.id} className="card">
-      <OpportunityBadge opportunity={row} />
-      <p className="mt-3 text-sm font-medium">{row.opportunity_type ? typeLabels[row.opportunity_type] : 'Grant'} · {(row.geographic_scope || []).join(', ')} {row.cycle ? `· Cycle ${row.cycle}` : '· Cycle not confirmed'}</p>
-      <h2 className="mt-4 text-xl font-semibold"><Link className="inline-flex min-h-11 items-center text-ink" to={`/opportunities/${row.id}`}>{row.title}</Link></h2>
-      <p className="mt-2 text-sm text-muted">{row.organiser} · Reviewed {row.review_date}
-      <span className="block">Official source review: {row.last_verified_at || 'Needs verification'}</span></p>
-      <p className="mt-3 whitespace-pre-wrap break-words text-muted">{row.description}</p>
-      <p className="mt-4 text-sm">{row.deadline ? `Published deadline: ${new Date(row.deadline).toLocaleString()} (your local time)` : 'Deadline not confirmed; consult the source.'}</p>
+    {!loading && !error && (filtered.length ? <ul className="mt-8 grid gap-5 md:grid-cols-2">{visible.map(row => <li key={row.id}>
+      <Link aria-label={row.title} className="block h-full border-b border-border py-6 focus-visible:outline-2 focus-visible:outline-offset-4" to={`/opportunities/${row.id}`}>
+        <OpportunityBadge opportunity={row} />
+        <h2 className="mt-3 break-words text-2xl font-semibold">{row.title}</h2>
+        {row.organiser && <p className="mt-2 text-sm text-muted">{row.organiser}</p>}
+        <p className="mt-3 line-clamp-3 break-words text-muted">{row.description || 'Description unavailable. View the opportunity for its official source.'}</p>
+        <p className="mt-4 text-sm text-muted">{row.deadline ? `Deadline: ${new Date(row.deadline).toLocaleDateString()}` : 'Deadline not confirmed; consult the source.'}</p>
+        <span className="mt-4 inline-block text-sm text-accent-readable">View opportunity →</span>
+      </Link>
     </li>)}</ul> : <p className="mt-6">{rows.length ? 'No opportunities match these filters.' : 'No opportunities have been published yet.'}</p>)}
     {!loading && !error && filtered.length > 6 && <nav aria-label="Catalogue pages" className="mt-5 flex items-center gap-4"><button className="button" disabled={page === 1} onClick={() => setPage(value => value - 1)}>Previous page</button><span>Page {page} of {Math.ceil(filtered.length / 6)}</span><button className="button" disabled={page * 6 >= filtered.length} onClick={() => setPage(value => value + 1)}>Next page</button></nav>}
   </section>

@@ -1,0 +1,5 @@
+# Revalidate deployment resources; the service worker owns the versioned shell.
+/*
+  Cache-Control: no-cache
+/sw.js
+  Cache-Control: no-store

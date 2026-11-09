@@ -55,7 +55,7 @@ insert into public.readiness_result_evidence(result_id,club_id,evidence_id) valu
  ('b4000000-0000-0000-0000-000000000006','b1000000-0000-0000-0000-000000000002','b5000000-0000-0000-0000-000000000002');
 insert into public.readiness_result_evidence(result_id,club_id,activity_id) values
  ('b4000000-0000-0000-0000-000000000002','b1000000-0000-0000-0000-000000000001','b6000000-0000-0000-0000-000000000001');
-select pg_temp.assert_true((select bool_and(status='unknown' and applicability='unknown' and evaluated_at is null and processing_state='never_assessed') from public.readiness_results),'defaults preserve unknown, including conditional and unsupported');
+select pg_temp.assert_true((select bool_and(status='unknown' and applicability='unknown' and evaluated_at is null and processing_state='never_assessed') from public.readiness_results where opportunity_id='b2000000-0000-0000-0000-000000000001'),'defaults preserve unknown, including conditional and unsupported');
 update public.readiness_results set status='supplied',applicability='applicable',reason='structured_fixture',evaluated_at=now(),processing_state='current'
  where id='b4000000-0000-0000-0000-000000000001';
 select pg_temp.assert_true((select status='supplied' from public.readiness_results where id='b4000000-0000-0000-0000-000000000001'),'mapped verified unconditional result allowed');

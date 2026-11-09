@@ -44,79 +44,83 @@ select ('b6000000-0000-0000-0000-'||lpad(n::text,12,'0'))::uuid,
  ('b1000000-0000-0000-0000-'||lpad(n::text,12,'0'))::uuid,'b0000000-0000-0000-0000-000000000001',
  'tournament','Fixture',current_date,'Field',1,'',now() from generate_series(1,2) n;
 
+\ir helpers/readiness_queue.sql
+insert into pg_temp.readiness_fixture_clubs values
+ ('b1000000-0000-0000-0000-000000000001'),
+ ('b1000000-0000-0000-0000-000000000002');
 -- Worker fixtures are rollback-only; each explicit assertion has a label.
-select pg_temp.assert_true((select count(*)=2 from public.processing_jobs where status='queued'),'events coalesce per club');
+select pg_temp.assert_true((select count(*)=2 from public.processing_jobs where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and status='queued'),'events coalesce per club');
 select private.prepare_readiness(100);
 set local role readiness_worker;
-select public.process_next_job();
-select public.process_next_job();
+select pg_temp.process_fixture_job();
+select pg_temp.process_fixture_job();
 reset role;
-select pg_temp.assert_true((select count(*)=10 from public.readiness_results),'both clubs evaluated');
+select pg_temp.assert_true((select count(*)=10 from public.readiness_results where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and opportunity_id='b2000000-0000-0000-0000-000000000001'),'both clubs evaluated');
 select pg_temp.assert_true((select bool_and(status='supplied') from public.readiness_results where requirement_id='b3000000-0000-0000-0000-000000000002'),'activity counts');
 select pg_temp.assert_true((select bool_and(status='unknown') from public.readiness_results where requirement_id in ('b3000000-0000-0000-0000-000000000004','b3000000-0000-0000-0000-000000000005')),'unsupported and conditional unknown');
-select pg_temp.assert_true((select count(*)=2 from public.readiness_result_evidence where activity_id is not null),'exact activity supports');
+select pg_temp.assert_true((select count(*)=2 from public.readiness_result_evidence where result_id in (select id from public.readiness_results where opportunity_id='b2000000-0000-0000-0000-000000000001' and club_id in (select club_id from pg_temp.readiness_fixture_clubs)) and activity_id is not null),'exact activity supports');
 select pg_temp.assert_true((select bool_and(status='unknown') from public.readiness_results where requirement_id='b3000000-0000-0000-0000-000000000001'),'null expiry unknown');
 -- Idempotent activity upload retries neither duplicate supports nor enqueue again.
-insert into public.activities select * from public.activities on conflict(id) do nothing;
-select pg_temp.assert_true((select count(*)=2 from public.activities),'duplicate activity retry count');
-select pg_temp.assert_true((select count(*)=0 from public.processing_jobs where status='queued'),'duplicate activity retry no extra work');
-update public.evidence set expires_at=(clock_timestamp() at time zone 'UTC')::date+31;
-select public.process_next_job(); select public.process_next_job();
+insert into public.activities select * from public.activities where club_id in (select club_id from pg_temp.readiness_fixture_clubs) on conflict(id) do nothing;
+select pg_temp.assert_true((select count(*)=2 from public.activities where club_id in (select club_id from pg_temp.readiness_fixture_clubs)),'duplicate activity retry count');
+select pg_temp.assert_true((select count(*)=0 from public.processing_jobs where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and status='queued'),'duplicate activity retry no extra work');
+update public.evidence set expires_at=(clock_timestamp() at time zone 'UTC')::date+31 where club_id in (select club_id from pg_temp.readiness_fixture_clubs);
+select pg_temp.process_fixture_job(); select pg_temp.process_fixture_job();
 select pg_temp.assert_true((select bool_and(status='supplied') from public.readiness_results where requirement_id='b3000000-0000-0000-0000-000000000001'),'beyond horizon supplied');
-update public.evidence set expires_at=(clock_timestamp() at time zone 'UTC')::date;
-select public.process_next_job(); select public.process_next_job();
+update public.evidence set expires_at=(clock_timestamp() at time zone 'UTC')::date where club_id in (select club_id from pg_temp.readiness_fixture_clubs);
+select pg_temp.process_fixture_job(); select pg_temp.process_fixture_job();
 select pg_temp.assert_true((select bool_and(status='expiring') from public.readiness_results where requirement_id='b3000000-0000-0000-0000-000000000001'),'UTC expiry date inclusive');
-update public.evidence set expires_at=(clock_timestamp() at time zone 'UTC')::date+10;
-select public.process_next_job(); select public.process_next_job();
+update public.evidence set expires_at=(clock_timestamp() at time zone 'UTC')::date+10 where club_id in (select club_id from pg_temp.readiness_fixture_clubs);
+select pg_temp.process_fixture_job(); select pg_temp.process_fixture_job();
 select pg_temp.assert_true((select bool_and(status='expiring') from public.readiness_results where requirement_id='b3000000-0000-0000-0000-000000000001'),'expiring window');
 update public.opportunity_requirements set min_count=2 where id='b3000000-0000-0000-0000-000000000001';
 update public.readiness_requirement_mappings set min_count=2 where requirement_id='b3000000-0000-0000-0000-000000000001';
-select public.process_next_job(); select public.process_next_job();
+select pg_temp.process_fixture_job(); select pg_temp.process_fixture_job();
 select pg_temp.assert_true((select bool_and(status='not_supplied') from public.readiness_results where requirement_id='b3000000-0000-0000-0000-000000000001'),'partial count is not supplied');
 insert into public.evidence(club_id,uploaded_by,document_type,file_name,storage_path,mime_type,file_size,expires_at)
-select club_id,uploaded_by,document_type,file_name,club_id::text||'/'||gen_random_uuid()::text||'.pdf',mime_type,file_size,(clock_timestamp() at time zone 'UTC')::date+100 from public.evidence;
-select public.process_next_job(); select public.process_next_job();
+select club_id,uploaded_by,document_type,file_name,club_id::text||'/'||gen_random_uuid()::text||'.pdf',mime_type,file_size,(clock_timestamp() at time zone 'UTC')::date+100 from public.evidence where club_id in (select club_id from pg_temp.readiness_fixture_clubs);
+select pg_temp.process_fixture_job(); select pg_temp.process_fixture_job();
 select pg_temp.assert_true((select bool_and(status='expiring') from public.readiness_results where requirement_id='b3000000-0000-0000-0000-000000000001'),'mixed current supports use expiring when stable count is short');
-select pg_temp.assert_true((select count(*)=4 from public.readiness_result_evidence where evidence_id is not null),'exact document supports including partial counts');
+select pg_temp.assert_true((select count(*)=4 from public.readiness_result_evidence where result_id in (select id from public.readiness_results where opportunity_id='b2000000-0000-0000-0000-000000000001' and club_id in (select club_id from pg_temp.readiness_fixture_clubs)) and evidence_id is not null),'exact document supports including partial counts');
 update public.readiness_requirement_mappings set club_fields=array['name','description'] where requirement_id='b3000000-0000-0000-0000-000000000003';
-update public.clubs set description=' ';
-select public.process_next_job(); select public.process_next_job();
+update public.clubs set description=' ' where id in (select club_id from pg_temp.readiness_fixture_clubs);
+select pg_temp.process_fixture_job(); select pg_temp.process_fixture_job();
 select pg_temp.assert_true((select bool_and(status='not_supplied') from public.readiness_results where requirement_id='b3000000-0000-0000-0000-000000000003'),'profile blank triggers missing information');
-update public.evidence set expires_at=(clock_timestamp() at time zone 'UTC')::date-1;
-select public.process_next_job(); select public.process_next_job();
+update public.evidence set expires_at=(clock_timestamp() at time zone 'UTC')::date-1 where club_id in (select club_id from pg_temp.readiness_fixture_clubs);
+select pg_temp.process_fixture_job(); select pg_temp.process_fixture_job();
 select pg_temp.assert_true((select bool_and(status='expired') from public.readiness_results where requirement_id='b3000000-0000-0000-0000-000000000001'),'expired documents');
-delete from public.evidence;
-select pg_temp.assert_true((select count(*)=2 from public.processing_jobs where status='queued'),'evidence deletion enqueues');
-select public.process_next_job(); select public.process_next_job();
+delete from public.evidence where club_id in (select club_id from pg_temp.readiness_fixture_clubs);
+select pg_temp.assert_true((select count(*)=2 from public.processing_jobs where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and status='queued'),'evidence deletion enqueues');
+select pg_temp.process_fixture_job(); select pg_temp.process_fixture_job();
 select pg_temp.assert_true((select bool_and(status='not_supplied') from public.readiness_results where requirement_id='b3000000-0000-0000-0000-000000000001'),'deleted evidence missing');
 update public.opportunity_requirements set description=description||' changed' where id='b3000000-0000-0000-0000-000000000002';
 select private.prepare_readiness(100);
-select pg_temp.assert_true((select bool_and(processing_state='stale') from public.readiness_results),'catalogue invalidates snapshots');
-select pg_temp.assert_true((select count(*)=2 from public.processing_jobs where status='queued'),'catalogue revision bounded fanout');
-select public.process_next_job(); select public.process_next_job();
+select pg_temp.assert_true((select bool_and(processing_state='stale') from public.readiness_results where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and opportunity_id='b2000000-0000-0000-0000-000000000001'),'catalogue invalidates snapshots');
+select pg_temp.assert_true((select count(*)=2 from public.processing_jobs where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and status='queued'),'catalogue revision bounded fanout');
+select pg_temp.process_fixture_job(); select pg_temp.process_fixture_job();
 select pg_temp.rejected($q$select private.evaluate_readiness('b1000000-0000-0000-0000-000000000001',1)$q$,'P0001','older evaluation cannot replace current generation');
 select private.enqueue_readiness('b1000000-0000-0000-0000-000000000001');
 select private.enqueue_readiness('b1000000-0000-0000-0000-000000000002');
 -- Inject a real result-write failure. Evaluation must roll back entirely while
 -- attempts/backoff persist outside the evaluator subtransaction.
-create temporary table before_failure as select jsonb_agg(to_jsonb(r)-'processing_state' order by id) snapshot from public.readiness_results r;
+create temporary table before_failure as select jsonb_agg(to_jsonb(r)-'processing_state' order by id) snapshot from public.readiness_results r where club_id in (select club_id from pg_temp.readiness_fixture_clubs);
 create function pg_temp.fail_result() returns trigger language plpgsql as $$ begin raise exception 'secret must not be logged'; end $$;
 create trigger test_failure before insert or update on public.readiness_results for each row execute function pg_temp.fail_result();
-select public.process_next_job();
-select pg_temp.assert_true((select count(*)=1 from public.processing_jobs where status='queued' and attempts=1 and last_error='evaluation_error:P0001' and run_after>clock_timestamp()),'safe retry bookkeeping and backoff');
+select pg_temp.process_fixture_job();
+select pg_temp.assert_true((select count(*)=1 from public.processing_jobs where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and status='queued' and attempts=1 and last_error='evaluation_error:P0001' and run_after>clock_timestamp()),'safe retry bookkeeping and backoff');
 drop trigger test_failure on public.readiness_results;
 -- Exercise all five attempts with time advanced only by trusted test SQL.
 create trigger test_failure before insert on public.readiness_result_evidence for each row execute function pg_temp.fail_result();
 do $$ declare n integer; begin for n in 1..12 loop
- update public.processing_jobs set run_after=clock_timestamp() where status='queued';
- perform public.process_next_job();
+ update public.processing_jobs set run_after=clock_timestamp() where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and status='queued';
+ perform pg_temp.process_fixture_job();
 end loop; end $$;
-select pg_temp.assert_true((select count(*)=2 from public.processing_jobs where status='failed' and attempts=5),'five attempts exhausted');
+select pg_temp.assert_true((select count(*)=2 from public.processing_jobs where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and status='failed' and attempts=5),'five attempts exhausted');
 drop trigger test_failure on public.readiness_result_evidence;
-update public.processing_jobs set status='queued',max_attempts=100,finished_at=null,run_after=clock_timestamp() where status='failed';
-select public.process_next_job(); select public.process_next_job();
-select pg_temp.assert_true((select count(*)=2 from public.processing_jobs where status='failed' and attempts=5 and last_error='attempt_limit'),'legacy maximum cannot permit sixth attempt');
-select pg_temp.assert_true((select snapshot from before_failure)=(select jsonb_agg(to_jsonb(r)-'processing_state' order by id) from public.readiness_results r),'failed evaluations roll back all result values');
+update public.processing_jobs set status='queued',max_attempts=100,finished_at=null,run_after=clock_timestamp() where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and status='failed';
+select pg_temp.process_fixture_job(); select pg_temp.process_fixture_job();
+select pg_temp.assert_true((select count(*)=2 from public.processing_jobs where club_id in (select club_id from pg_temp.readiness_fixture_clubs) and status='failed' and attempts=5 and last_error='attempt_limit'),'legacy maximum cannot permit sixth attempt');
+select pg_temp.assert_true((select snapshot from before_failure)=(select jsonb_agg(to_jsonb(r)-'processing_state' order by id) from public.readiness_results r where club_id in (select club_id from pg_temp.readiness_fixture_clubs)),'failed evaluations roll back all result values');
 select pg_temp.assert_true(not has_function_privilege('authenticated','public.process_next_job()','execute') and not has_function_privilege('anon','public.process_next_job()','execute') and not has_function_privilege('service_role','public.process_next_job()','execute'),'worker privilege boundary');
 set local role authenticated;
 select pg_temp.rejected('select public.process_next_job()','42501','client execution denied');

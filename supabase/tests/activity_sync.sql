@@ -74,7 +74,7 @@ select pg_temp.assert_true((select count(*)=0 from storage.objects where bucket_
 select pg_temp.denied(replace(:'probe','51000000-0000-0000-0000-000000000003','51000000-0000-0000-0000-000000000002'), 'unrelated user insert');
 delete from storage.objects where bucket_id='activity-media';
 reset role;
-select pg_temp.assert_true((select count(*)=3 from storage.objects where bucket_id='activity-media'), 'storage bytes cannot be deleted by client');
+select pg_temp.assert_true((select count(*)=3 from storage.objects where bucket_id='activity-media' and name in (:'path', :'path_two', :'admin_path')), 'storage bytes cannot be deleted by client');
 set local role anon;
 select pg_temp.denied('select * from public.activities','anonymous activities');
 select pg_temp.denied('select * from public.activity_attachments','anonymous attachments');

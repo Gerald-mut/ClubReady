@@ -31,6 +31,7 @@ supabase test db supabase/tests/database
 python3 scripts/ci/test-activity-upgrade.py
 python3 scripts/ci/test-readiness-upgrade.py
 python3 scripts/ci/test-readiness-worker-upgrade.py
+python3 scripts/ci/test-readiness-member-upgrade.py
 
 # Real overlapping database sessions; committed catalog-only fixtures mean this
 # must run last and only on the disposable stack, which CI discards afterward.
@@ -40,3 +41,5 @@ python3 scripts/ci/test-readiness-concurrency.py
 
 python3 -B scripts/ci/test-readiness-scheduler.py
 python3 -B scripts/ci/test-readiness-scheduling-integration.py
+
+python3 scripts/ci/test-readiness-member-concurrency.py

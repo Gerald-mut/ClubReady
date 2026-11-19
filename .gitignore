@@ -5,3 +5,8 @@ dist/
 .env.*
 !.env.example
 .DS_Store
+
+# Local Supabase CLI linkage and generated artifacts
+supabase/.temp/
+supabase/.branches/
+.codex-logs/

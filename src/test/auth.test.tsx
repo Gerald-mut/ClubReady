@@ -1,3 +1,4 @@
+import { db, saveActivity } from '../db/offline'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -87,6 +88,19 @@ describe('session provider', () => {
     act(() => mock.listener?.('SIGNED_OUT', null))
     expect(screen.getByText('signed out')).toBeInTheDocument()
     view.unmount(); expect(mock.unsubscribe).toHaveBeenCalled()
+  })
+  it('clears the signed-out offline profile while retaining pending activities and photos', async () => {
+    const userId = session.user.id
+    await db.selections.put({ user_id: userId, selection: { club: { id: 'logout-club', name: 'Club', county: 'Nairobi', sub_county: null, year_established: null, description: null, contact_email: null, created_at: '', updated_at: '' }, membership: { club_id: 'logout-club', user_id: userId, role: 'club_member', joined_at: '' } } })
+    const row = await saveActivity(userId, 'logout-club', { activity_type: 'training', title: 'Pending before logout', date: '2026-11-09', location: 'Pitch', participants_count: 2, notes: '' }, [{ id: 'logout-photo', activity_id: '', name: 'photo.jpg', blob: new Blob(['photo'], { type: 'image/jpeg' }) }])
+    const view = render(<AuthProvider><Probe /></AuthProvider>)
+    await screen.findByText('authenticated')
+    act(() => mock.listener?.('SIGNED_OUT', null))
+    await waitFor(async () => expect(await db.selections.get(userId)).toBeUndefined())
+    expect(await db.activities.get(row.id)).toMatchObject({ sync_status: 'saved_locally' })
+    expect(await db.attachments.get('logout-photo')).toBeDefined()
+    view.unmount()
+    await db.activities.delete(row.id); await db.attachments.delete('logout-photo')
   })
   it('does not overwrite an auth event with a stale session restoration', async () => {
     let resolve!: (value: unknown) => void

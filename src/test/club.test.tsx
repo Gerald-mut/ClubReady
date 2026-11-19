@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '@supabase/supabase-js'
@@ -20,7 +21,7 @@ const session = { user: { id: 'user-a' } } as Session
 const auth = { session, loading: false, error: '', recovery: false, finishRecovery: vi.fn() }
 const refresh = vi.fn()
 function wrap(child: React.ReactNode, role: 'club_admin' | 'club_member' = 'club_admin') {
-  return render(<AuthContext.Provider value={auth}><ClubContext.Provider value={{ selection: { club, membership: { club_id: club.id, user_id: 'user-a', role, joined_at: '' } }, error: '', loading: false, refresh }}>{child}</ClubContext.Provider></AuthContext.Provider>)
+  return render(<MemoryRouter><AuthContext.Provider value={auth}><ClubContext.Provider value={{ selection: { club, membership: { club_id: club.id, user_id: 'user-a', role, joined_at: '' } }, error: '', loading: false, refresh }}>{child}</ClubContext.Provider></AuthContext.Provider></MemoryRouter>)
 }
 beforeEach(() => { Object.values(mock).forEach(fn => fn.mockReset()); mock.listDocuments.mockResolvedValue([]); refresh.mockReset() })
 describe('club management', () => {
@@ -49,11 +50,12 @@ describe('club management', () => {
     expect(mock.updateClub).toHaveBeenCalledWith('club-a', expect.objectContaining({ name: 'Updated Stars' })); expect(refresh).toHaveBeenCalled()
   })
   it('shows members a read-only profile', async () => {
-    wrap(<ClubProfile />, 'club_member'); await screen.findByText('No documents supplied yet.')
+    wrap(<ClubProfile />, 'club_member'); await userEvent.click(screen.getByRole('link', { name: 'Documents' })); await screen.findByText('No documents supplied yet.')
     expect(screen.getByText('Nairobi Stars')).toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Edit profile' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Upload document' })).not.toBeInTheDocument()
   })
   it('loads documents and exposes upload controls on the administrator profile', async () => {
     wrap(<ClubProfile />)
+    await userEvent.click(screen.getByRole('link', { name: 'Documents' }))
     await screen.findByText('No documents supplied yet.')
     expect(screen.getByRole('region', { name: 'Club documents' })).toHaveTextContent('No documents supplied yet.')
     expect(screen.getByRole('button', { name: 'Upload document' })).toBeInTheDocument()
@@ -90,6 +92,7 @@ describe('document interface', () => {
   it('retries a failed document listing', async () => {
     mock.listDocuments.mockRejectedValueOnce(new Error('Listing unavailable')).mockResolvedValue([document])
     wrap(<ClubProfile />)
+    await userEvent.click(screen.getByRole('link', { name: 'Documents' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Listing unavailable')
     await userEvent.click(screen.getByRole('button', { name: 'Reload documents' }))
     expect(await screen.findByText('policy.pdf')).toBeInTheDocument()
@@ -98,6 +101,7 @@ describe('document interface', () => {
     let reject!: (error: Error) => void
     mock.uploadDocument.mockReturnValue(new Promise<void>((_, fail) => { reject = fail }))
     wrap(<ClubProfile />)
+    await userEvent.click(screen.getByRole('link', { name: 'Documents' }))
     await userEvent.upload(screen.getByLabelText(/File \(PDF/), new File(['pdf'], 'test.pdf', { type: 'application/pdf' }))
     fireEvent.submit(screen.getByRole('button', { name: 'Upload document' }).closest('form')!)
     expect(screen.getByRole('button', { name: 'Please wait…' })).toBeDisabled()
@@ -109,6 +113,7 @@ describe('document interface', () => {
     mock.listDocuments.mockResolvedValue([document]); mock.documentUrl.mockResolvedValue('https://example.com/download')
     mock.deleteDocument.mockRejectedValue(new Error('Deletion unavailable'))
     wrap(<ClubProfile />)
+    await userEvent.click(screen.getByRole('link', { name: 'Documents' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Download' }))
     expect(mock.documentUrl).toHaveBeenCalledWith(document, true)
     expect(await screen.findByRole('link', { name: 'Download policy.pdf' })).toHaveAttribute('href', 'https://example.com/download')
@@ -126,4 +131,19 @@ it('loads membership and removes previous account data on account switching', as
   mock.loadMembership.mockResolvedValue(null)
   view.rerender(<AuthContext.Provider value={{ ...auth, session: { user: { id: 'user-b' } } as Session }}><ClubProvider><MembershipProbe /></ClubProvider></AuthContext.Provider>)
   expect(screen.queryByText('Nairobi Stars')).not.toBeInTheDocument(); expect(await screen.findByText('No club')).toBeInTheDocument()
+})
+
+it('navigates separated profile sections and preserves overview access', async () => {
+  wrap(<ClubProfile />)
+  expect(screen.getByText('Grassroots football')).toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: 'Club documents' })).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('link', { name: 'Members' }))
+  expect(screen.getByRole('region', { name: 'Members' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('link', { name: 'Settings' }))
+  expect(screen.getByRole('link', { name: 'Activity sync and PlayProof' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('link', { name: 'Overview' }))
+  const description = screen.getByText('Grassroots football')
+  expect(description).toBeInTheDocument()
+  const navigation = screen.getByRole('navigation', { name: 'Club sections' })
+  expect(navigation.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })

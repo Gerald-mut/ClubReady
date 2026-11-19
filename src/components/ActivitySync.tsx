@@ -26,7 +26,7 @@ export default function ActivitySync() {
   if (!userId || !clubId) return null
   return <aside aria-label="Activity sync" className="mt-4 space-y-2 text-sm">
     <p role="status">{!online ? 'Offline · Activities saved on this device' : state.authRequired ? 'Sync paused · Sign in again' : state.running ? 'Syncing activities…' : 'Activity sync ready · Local copies are kept'}</p>
-    {state.error && <p role="alert" className="text-red-700">{state.error}</p>}
-    {state.authRequired ? <Link className="text-green-800 underline" to="/sign-in?reauth=1">Sign in again</Link> : <button disabled={!online || state.running} className="text-green-800 underline disabled:opacity-50" onClick={() => void syncEngine.run(true)}>Sync now</button>}
+    {state.error && <p role="alert" className="text-ink">{state.error}</p>}
+    {state.authRequired ? <Link className="text-accent-readable underline" to="/sign-in?reauth=1">Sign in again</Link> : <button disabled={!online || state.running} className="text-accent-readable underline disabled:opacity-50" onClick={() => void syncEngine.run(true)}>Sync now</button>}
   </aside>
 }

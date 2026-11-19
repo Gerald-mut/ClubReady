@@ -25,7 +25,7 @@ export default function ClubForm({ initial, onSave, label }: { initial?: ClubInp
     </div>
     <label className="field">Description<textarea name="description" rows={4} maxLength={5000} defaultValue={initial?.description || ''} /></label>
     <label className="field">Contact email<input name="contact_email" type="email" maxLength={254} defaultValue={initial?.contact_email || ''} /></label>
-    {error && <p role="alert" className="text-red-700">{error}</p>}
+    {error && <p role="alert" className="text-ink">{error}</p>}
     <button className="button" disabled={busy}>{busy ? 'Saving…' : label}</button>
   </form>
 }

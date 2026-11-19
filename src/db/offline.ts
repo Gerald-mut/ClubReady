@@ -1,3 +1,4 @@
+import { secureUUID } from '../services/uuid'
 import Dexie, { type EntityTable } from 'dexie'
 import type { ClubProfile, Opportunity } from '../types'
 import { MAX_IMAGE_BYTES, validateActivity, type Attachment, type ActivityInput, type LocalActivity } from '../services/activities'
@@ -46,7 +47,7 @@ export async function saveActivity(userId: string, clubId: string, input: Activi
   return db.transaction('rw', db.activities, db.attachments, async () => {
     const previous = id ? await db.activities.get(id) : undefined
     if (id && (!previous || previous.created_by !== userId || previous.club_id !== clubId || !editable(previous))) throw new Error('This activity cannot be edited.')
-    const activity: LocalActivity = { ...input, title: input.title.trim(), location: input.location.trim(), id: previous?.id ?? crypto.randomUUID(), created_by: userId, club_id: clubId, createdAt: previous?.createdAt ?? new Date().toISOString(), sync_status: 'saved_locally' }
+    const activity: LocalActivity = { ...input, title: input.title.trim(), location: input.location.trim(), id: previous?.id ?? secureUUID(), created_by: userId, club_id: clubId, createdAt: previous?.createdAt ?? new Date().toISOString(), sync_status: 'saved_locally' }
     await db.activities.put(activity)
     await db.attachments.where('activity_id').equals(activity.id).delete()
     await db.attachments.bulkAdd(attachments.map(item => ({ ...item, activity_id: activity.id })))

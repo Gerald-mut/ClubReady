@@ -1,16 +1,19 @@
 import { backend } from './supabase'
 import type { Club, ClubInput, Membership } from '../types/club'
 
-export async function loadMembership(userId: string, clubId?: string): Promise<{ membership: Membership; club: Club } | null> {
+export async function loadMembership(userId: string, clubId?: string, signal?: AbortSignal): Promise<{ membership: Membership; club: Club } | null> {
   const client = backend()
   let query = client.from('club_members').select('*').eq('user_id', userId)
   if (clubId) query = query.eq('club_id', clubId)
-  const { data, error } = await query.order('joined_at').order('club_id').limit(1)
+  query = query.order('joined_at').order('club_id').limit(1)
+  if (signal) query = query.abortSignal(signal)
+  const { data, error } = await query
   if (error) throw error
   const membership = data?.[0] as Membership | undefined
-  if (!membership && clubId) return loadMembership(userId)
+  if (!membership && clubId) return loadMembership(userId, undefined, signal)
   if (!membership) return null
-  const result = await client.from('clubs').select('*').eq('id', membership.club_id).single()
+  const profile = client.from('clubs').select('*').eq('id', membership.club_id)
+  const result = await (signal ? profile.abortSignal(signal) : profile).single()
   if (result.error) throw result.error
   return { membership, club: result.data as Club }
 }

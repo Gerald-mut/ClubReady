@@ -27,7 +27,7 @@ it('refreshes badges after sync, retains failed records and offers retry', async
   await screen.findByText('Saved locally')
   await db.activities.update(activity.id, { sync_status: 'failed', sync_started_at: 1, last_error: 'Your local activity is safe.' })
   publish({})
-  await screen.findByText('Failed - retry')
+  await screen.findByText('Sync failed - retry')
   expect(screen.getByText('Your local activity is safe.')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Retry sync' })); expect(mock.run).toHaveBeenCalledWith(true)

@@ -28,11 +28,11 @@ export default function JoinClub() {
     catch (failure) { setError(message(failure)) }
     finally { lock.current = false; setBusy(false) }
   }
-  return <section className="panel mx-auto max-w-xl"><h1 className="text-3xl font-bold">Join a club</h1>
-    <p className="mt-3 text-slate-600">Paste an invitation from a club administrator. Invitations are single use and expire after seven days.</p>
-    {auth.error && <p role="alert" className="mt-4 text-red-700">{auth.error}</p>}
-    {error && <p role="alert" className="mt-4 text-red-700">{error}</p>}
-    {joined ? <div className="mt-6"><p role="status">You have joined the club.</p><Link className="text-green-800 underline" to="/club-profile">View club profile</Link></div> : <form className="mt-6 space-y-4" onSubmit={event => void submit(event)}>
+  return <section className="panel mx-auto max-w-xl"><h1 className="page-title">Join a club</h1>
+    <p className="mt-3 text-muted">Paste an invitation from a club administrator. Invitations are single use and expire after seven days.</p>
+    {auth.error && <p role="alert" className="mt-4 text-ink">{auth.error}</p>}
+    {error && <p role="alert" className="mt-4 text-ink">{error}</p>}
+    {joined ? <div className="mt-6"><p role="status">You have joined the club.</p><Link className="text-accent-readable underline" to="/club-profile">View club profile</Link></div> : <form className="mt-6 space-y-4" onSubmit={event => void submit(event)}>
       <label className="field">Invite code or link<input value={code} onChange={event => setCode(event.target.value)} required autoComplete="off" spellCheck={false} maxLength={2048} /></label>
       <button className="button" disabled={busy}>{busy ? 'Joining…' : auth.session ? 'Join club' : 'Continue to sign in'}</button>
     </form>}

@@ -194,4 +194,15 @@ insert into public.opportunity_requirements(id,opportunity_id,version,requiremen
 ('64000000-0000-0000-0000-000000000018','60000000-0000-0000-0000-000000000006',2,'document','other','Board and leadership list — supply only to organiser',1,'https://www.globalgiving.org/nonprofit-due-diligence-documents/ — Non-US candidate checklist — needs confirmation',true,true,null,'{"url": "https://www.globalgiving.org/nonprofit-due-diligence-documents/", "publisher": "GlobalGiving", "title": "Non-US candidate checklist — needs confirmation", "cycle": null, "exact_location": "Non-US candidate checklist — needs confirmation", "verified_at": null}'::jsonb,'needs_verification'),
 ('64000000-0000-0000-0000-000000000019','60000000-0000-0000-0000-000000000006',2,'document','other','Compliance declarations and policies',1,'https://www.globalgiving.org/nonprofit-due-diligence-documents/ — Non-US candidate checklist — needs confirmation',true,true,null,'{"url": "https://www.globalgiving.org/nonprofit-due-diligence-documents/", "publisher": "GlobalGiving", "title": "Non-US candidate checklist — needs confirmation", "cycle": null, "exact_location": "Non-US candidate checklist — needs confirmation", "verified_at": null}'::jsonb,'needs_verification')
 on conflict(id) do nothing;
+-- Only the two existing source-verified, unconditional registration requirements.
+-- This maps document presence; it neither verifies documents nor infers eligibility.
+insert into public.readiness_requirement_mappings
+ (requirement_id, opportunity_id, requirement_version, mapping_type, document_type, min_count)
+select id, opportunity_id, version, 'document', document_type, min_count
+from public.opportunity_requirements
+where id in ('64000000-0000-0000-0000-000000000001', '64000000-0000-0000-0000-000000000006')
+ and version=2 and is_current and requirement_type='document'
+ and document_type='club_registration' and min_count=1
+ and verification='verified' and condition is null
+on conflict (requirement_id) do nothing;
 commit;

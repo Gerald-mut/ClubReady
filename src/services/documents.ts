@@ -1,3 +1,5 @@
+import { secureUUID } from './uuid'
+import { invalidateReadiness } from './readiness-events'
 import { backend } from './supabase'
 import type { Evidence } from '../types/club'
 const extensions: Record<string, string> = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' }
@@ -16,12 +18,13 @@ export async function listDocuments(clubId: string) {
 export async function uploadDocument(clubId: string, userId: string, type: Evidence['document_type'], file: File) {
   const extension = validateFile(file)
   const client = backend()
-  const path = `${clubId}/${crypto.randomUUID()}.${extension}`
+  const path = `${clubId}/${secureUUID()}.${extension}`
   const uploaded = await client.storage.from('club-evidence').upload(path, file, { contentType: file.type, upsert: false })
   if (uploaded.error) throw uploaded.error
   try {
     const { error } = await client.from('evidence').insert({ club_id: clubId, uploaded_by: userId, document_type: type, file_name: file.name, storage_path: path, mime_type: file.type, file_size: file.size, status: 'supplied' })
     if (error) throw error
+    invalidateReadiness(clubId)
   } catch (failure) {
     const cleanup = await client.storage.from('club-evidence').remove([path])
     if (cleanup.error) throw new Error(`Metadata could not be saved and cleanup failed. Ask an administrator to remove orphan file ${path}.`)
@@ -40,4 +43,5 @@ export async function deleteDocument(document: Evidence) {
   if (removed.error) throw removed.error
   const { error } = await client.from('evidence').delete().eq('id', document.id).select('id').single()
   if (error) throw new Error('File removed, but metadata could not be deleted. Retry deletion to finish cleanup.')
+  invalidateReadiness(document.club_id)
 }

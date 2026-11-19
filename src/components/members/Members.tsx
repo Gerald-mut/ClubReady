@@ -37,12 +37,12 @@ export default function Members({ clubId, userId, admin, refresh }: { clubId: st
   function reload() { setLoading(true); setVersion(value => value + 1) }
   return <section id="club-members" className="scroll-mt-6 mt-10 border-t border-border pt-6" aria-label="Members" aria-busy={loading || busy}>
     <h2 className="text-xl font-semibold">Members</h2>
-    <p className="mt-2 text-sm text-muted">Members are identified by their account ID. Share invitations only with people you trust.</p>
+    <p className="mt-2 text-sm text-muted">Share invitations only with people you trust. Account references are available beneath each member.</p>
     {error && <div role="alert" className="mt-4 text-ink">{error} <button className="underline" disabled={busy} onClick={() => { setError(''); reload() }}>Reload members</button></div>}
     {notice && <p role="status" className="mt-4 text-sm text-ink">{notice}</p>}
-    {loading ? <p role="status">Loading members…</p> : <ul className="mt-4 divide-y divide-border">{members.map(member => <li key={member.user_id} className="py-4">
-      <p className="break-all font-medium">{member.user_id}{member.user_id === userId ? ' (you)' : ''}</p><p>{roleName(member.role)}</p>
-      {admin && <div className="mt-2 flex flex-wrap gap-4"><button className="text-accent-readable underline" disabled={busy} onClick={() => setPending({ userId: member.user_id, role: member.role === 'club_admin' ? 'club_member' : 'club_admin' })}>{member.role === 'club_admin' ? 'Demote to member' : 'Promote to administrator'}</button><button className="text-ink underline" disabled={busy} onClick={() => setPending({ userId: member.user_id, role: null })}>Remove member</button></div>}
+    {loading ? <p role="status">Loading members…</p> : <ul className="mt-4 divide-y divide-border">{members.map((member, index) => <li key={member.user_id} className="py-4">
+      <p className="break-all font-medium">{member.user_id === userId ? 'You' : `Club member ${index + 1}`}<span className="mt-1 block text-xs font-normal text-muted">Account reference: {member.user_id}</span></p><p>{roleName(member.role)}</p>
+      {admin && <div className="mt-2 flex flex-wrap gap-4"><button className="text-accent-readable underline" disabled={busy || (member.role === 'club_admin' && members.filter(person => person.role === 'club_admin').length === 1)} onClick={() => setPending({ userId: member.user_id, role: member.role === 'club_admin' ? 'club_member' : 'club_admin' })}>{member.role === 'club_admin' ? 'Demote to member' : 'Promote to administrator'}</button><button className="text-ink underline" disabled={busy || (member.role === 'club_admin' && members.filter(person => person.role === 'club_admin').length === 1)} onClick={() => setPending({ userId: member.user_id, role: null })}>Remove member</button></div>}
     </li>)}</ul>}
     {pending && admin && <div role="group" aria-label="Confirm membership change" className="mt-4 rounded-lg border border-border p-4">
       <p className="break-words">{pending.role ? `Change ${pending.userId} to ${roleName(pending.role)}?` : `Remove ${pending.userId} from this club?`} The club must retain an administrator.</p>

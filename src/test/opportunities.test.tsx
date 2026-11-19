@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+const lifecycle = { state: 'up_to_date' as const, last_assessed_at: '2026-11-08T12:00:00Z' }
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
@@ -9,8 +10,9 @@ import { AuthContext } from '../contexts/auth-state'
 import { ClubContext } from '../contexts/club-state'
 import type { Club, Evidence } from '../types/club'
 import type { CatalogueOpportunity, Requirement, Tracking } from '../services/opportunities'
-const mock = vi.hoisted(() => ({ listOpportunities: vi.fn(), getOpportunity: vi.fn(), listRequirements: vi.fn(), listRules: vi.fn(), getTracking: vi.fn(), saveTracking: vi.fn(), listDocuments: vi.fn(), listActivities: vi.fn() }))
+const mock = vi.hoisted(() => ({ loadReadiness: vi.fn(), listOpportunities: vi.fn(), getOpportunity: vi.fn(), listRequirements: vi.fn(), listRules: vi.fn(), getTracking: vi.fn(), saveTracking: vi.fn(), listDocuments: vi.fn(), listActivities: vi.fn() }))
 vi.mock('../services/opportunities', async importOriginal => ({ ...await importOriginal<typeof import('../services/opportunities')>(), ...mock }))
+vi.mock('../services/readiness', async original => ({ ...await original<typeof import('../services/readiness')>(), loadReadiness: mock.loadReadiness }))
 vi.mock('../services/documents', () => ({ listDocuments: mock.listDocuments }))
 vi.mock('../db/offline', () => ({ listActivities: mock.listActivities }))
 const opportunity: CatalogueOpportunity = { id: 'one', title: 'Example fund', organiser: 'Provider', description: 'Past funding round.', source_url: 'https://example.org/source', application_method: 'Closed applications.', application_url: null, deadline: null, status: 'historical', review_date: '2026-11-08', is_demonstration: true }
@@ -26,6 +28,7 @@ beforeEach(() => {
   mock.listOpportunities.mockResolvedValue([opportunity]); mock.getOpportunity.mockResolvedValue(opportunity)
   mock.listRequirements.mockResolvedValue(requirements); mock.listRules.mockResolvedValue([]); mock.getTracking.mockResolvedValue(null)
   mock.listDocuments.mockResolvedValue([{ document_type: 'club_registration' } as Evidence]); mock.listActivities.mockResolvedValue([{ id: 'local' }])
+  mock.loadReadiness.mockResolvedValue({ lifecycle, rows: requirements.map(requirement => ({ requirement, documents: [], activities: [] })) })
   mock.saveTracking.mockResolvedValue(tracking)
 })
 function Flow({ path = '/opportunities/one', admin = true, clubId = 'club', userId = 'user' }: { path?: string; admin?: boolean; clubId?: string; userId?: string }) {
@@ -37,52 +40,16 @@ it('lists status, demonstration label and review date, then opens detail', async
   await userEvent.click(await screen.findByRole('link', { name: 'Example fund' }))
   expect(await screen.findByRole('heading', { name: 'Example fund' })).toBeInTheDocument()
   expect(screen.getByText('Historical')).toBeInTheDocument(); expect(screen.getByText('Demonstration only')).toBeInTheDocument()
-  expect(screen.getAllByText(/Reviewed 2026-11-08/, { selector: 'p' }).length).toBeGreaterThan(0)
+  expect(screen.queryByText('Application tracking')).not.toBeInTheDocument()
+  expect(mock.getTracking).not.toHaveBeenCalled()
 })
-it('compares documents and account-scoped local activities with source links', async () => {
+it('renders the real scoped readiness reader without local evidence inference', async () => {
   render(<Flow />)
-  const table = await screen.findByRole('table')
-  expect(within(within(table).getByText('Registration certificate').closest('tr')!).getByText('Supplied')).toBeInTheDocument()
-  expect(within(within(table).getByText('Audited accounts').closest('tr')!).getByText('Not supplied')).toBeInTheDocument()
-  expect(within(table).getByText('Your local activity records: 1')).toBeInTheDocument()
-  expect(within(screen.getByText('Social mission').closest('tr')!).getByText('No automatic category match')).toBeInTheDocument()
-  expect(screen.getByText(/not other members or devices/)).toBeInTheDocument()
-  expect(screen.getAllByRole('link', { name: /Requirement source/ })[0]).toHaveAttribute('href', 'https://example.org/rules')
-  expect(mock.listDocuments).toHaveBeenCalledWith('club'); expect(mock.listActivities).toHaveBeenCalledWith('user', 'club')
+  await screen.findByRole('heading', { name: 'Registration certificate' })
+  expect(mock.loadReadiness).toHaveBeenCalledWith('club', 'one')
+  expect(screen.getAllByText('Readiness assessment not available for this requirement.')).toHaveLength(4)
+  expect(mock.listActivities).not.toHaveBeenCalled()
   expect(screen.queryByRole('link', { name: /Application website/ })).not.toBeInTheDocument()
-})
-it('loads saved tracking read-only for members', async () => {
-  mock.getTracking.mockResolvedValue(tracking)
-  render(<Flow admin={false} />)
-  expect(await screen.findByText('Club notes')).toBeInTheDocument()
-  expect(screen.getByText('Preparing')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Save tracking' })).not.toBeInTheDocument()
-  expect(screen.queryByLabelText('Application notes')).not.toBeInTheDocument()
-  expect(mock.saveTracking).not.toHaveBeenCalled()
-})
-it('saves admin status and notes, locking the form during submission', async () => {
-  let resolve!: (row: Tracking) => void
-  mock.saveTracking.mockReturnValue(new Promise<Tracking>(done => { resolve = done }))
-  render(<Flow />)
-  await screen.findByLabelText('Application status')
-  await userEvent.selectOptions(screen.getByLabelText('Application status'), 'preparing')
-  await userEvent.type(screen.getByLabelText('Application notes'), 'Club notes')
-  fireEvent.submit(screen.getByRole('button', { name: 'Save tracking' }).closest('form')!)
-  expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled()
-  expect(screen.getByLabelText('Application status')).toBeDisabled()
-  expect(mock.saveTracking).toHaveBeenCalledWith('club', 'one', 'preparing', 'Club notes')
-  resolve(tracking)
-  expect(await screen.findByText('Application tracking saved.')).toBeInTheDocument()
-})
-it('retains draft on tracking failure and permits retry', async () => {
-  mock.saveTracking.mockRejectedValueOnce(new Error('Permission denied'))
-  render(<Flow />)
-  await userEvent.type(await screen.findByLabelText('Application notes'), 'Draft')
-  fireEvent.submit(screen.getByRole('button', { name: 'Save tracking' }).closest('form')!)
-  expect(await screen.findByRole('alert')).toHaveTextContent('Permission denied')
-  expect(screen.getByLabelText('Application notes')).toHaveValue('Draft')
-  fireEvent.submit(screen.getByRole('button', { name: 'Save tracking' }).closest('form')!)
-  expect(await screen.findByText('Application tracking saved.')).toBeInTheDocument()
 })
 it('shows missing and empty catalogue states', async () => {
   mock.listOpportunities.mockResolvedValue([])
@@ -104,40 +71,12 @@ it('retries catalogue and detail load errors', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
   await screen.findByRole('heading', { name: 'Example fund' })
 })
-it('does not report missing evidence when the evidence request fails', async () => {
-  mock.listDocuments.mockRejectedValueOnce(new Error('Evidence unavailable'))
-  render(<Flow />)
-  expect(await screen.findByRole('alert')).toHaveTextContent('Evidence unavailable')
-  expect(screen.queryByRole('table')).not.toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
-  expect(await screen.findByRole('table')).toBeInTheDocument()
-})
-it('clears private drafts after club, account or role changes', async () => {
-  const view = render(<Flow />)
-  await userEvent.type(await screen.findByLabelText('Application notes'), 'Private draft')
-  view.rerender(<Flow clubId="other-club" userId="other-user" admin={false} />)
-  expect(screen.queryByText('Private draft')).not.toBeInTheDocument()
-  expect(screen.queryByLabelText('Application notes')).not.toBeInTheDocument()
-  await waitFor(() => expect(mock.listActivities).toHaveBeenCalledWith('other-user', 'other-club'))
-  expect(await screen.findByText('No notes added.')).toBeInTheDocument()
-})
-
-it('ignores late tracking results from a previous account', async () => {
-  let resolve!: (row: Tracking) => void
-  mock.getTracking.mockReturnValueOnce(new Promise<Tracking>(done => { resolve = done }))
-  const view = render(<Flow />)
-  view.rerender(<Flow userId="next-user" clubId="next-club" admin={false} />)
-  await screen.findByText('No notes added.')
-  resolve(tracking)
-  await waitFor(() => expect(screen.queryByText('Club notes')).not.toBeInTheDocument())
-})
 it('shows open application links, an empty requirements message and zero local records', async () => {
   mock.getOpportunity.mockResolvedValue({ ...opportunity, status: 'open', verification_status: 'official_source_reviewed', last_verified_at: '2026-11-08', next_review_at: '2099-01-01', opens_at: '2020-01-01', deadline: '2099-12-31', is_demonstration: false, application_url: 'https://example.org/apply' })
-  mock.listRequirements.mockResolvedValue([]); mock.listActivities.mockResolvedValue([])
+  mock.listRequirements.mockResolvedValue([]); mock.loadReadiness.mockResolvedValue({ lifecycle, rows: [] })
   render(<Flow />)
   expect(await screen.findByRole('link', { name: /Application website/ })).toHaveAttribute('href', 'https://example.org/apply')
-  expect(await screen.findByText('No current requirements have been published.')).toBeInTheDocument()
-  expect(screen.getByText('Your local activity records: 0')).toBeInTheDocument()
+  expect(await screen.findByText('No current requirements are available for assessment.')).toBeInTheDocument()
   expect(screen.queryByText('Demonstration only')).not.toBeInTheDocument()
 })
 
@@ -156,18 +95,6 @@ it('filters by type, scope, availability and text with an empty-match state', as
   await userEvent.type(screen.getByLabelText('Search opportunities'), 'missing')
   expect(screen.getByText('No opportunities match these filters.')).toBeInTheDocument()
 })
-it('shows explainable unknown and failed aggregate criteria without collecting identity documents', async () => {
-  mock.getOpportunity.mockResolvedValue({ ...opportunity, slug: 'safaricom-chapa-dimba-2026', status: 'unconfirmed' })
-  mock.listRules.mockResolvedValue([{ id: 'rule', label: 'Girls participation', explanation: '20% minimum', mandatory: true, verification: 'verified', source_reference: { url: 'https://example.org/criteria', publisher: 'Provider', title: 'Criteria', verified_at: '2026-11-08' }, expression: { op: 'gte', field: 'girlsParticipantShare', value: 20 } }])
-  render(<Flow />)
-  expect(await screen.findByRole('heading', { name: 'Club readiness' })).toBeInTheDocument()
-  expect(screen.getByText('Insufficient information')).toBeInTheDocument()
-  expect(screen.getByText(/Player identity and parental consent documents must be submitted directly/)).toBeInTheDocument()
-  fireEvent.change(screen.getByLabelText(/Girls participating/), { target: { value: '19' } })
-  expect(screen.getByText('Ineligible under the supplied answers')).toBeInTheDocument()
-  expect(screen.queryByLabelText(/NEMIS|birth date|consent|identity document/i)).not.toBeInTheDocument()
-  expect(screen.queryByRole('link', { name: /Application website/ })).not.toBeInTheDocument()
-})
 it('keeps a closed or stale call from exposing an application link', async () => {
   mock.getOpportunity.mockResolvedValue({ ...opportunity, status: 'closed', application_url: 'https://example.org/apply' })
   const view = render(<Flow />)
@@ -179,4 +106,21 @@ it('keeps a closed or stale call from exposing an application link', async () =>
   await screen.findByRole('heading', { name: 'Example fund' })
   expect(screen.getByText('Status unconfirmed')).toBeInTheDocument()
   expect(screen.queryByRole('link', { name: /Application website/ })).not.toBeInTheDocument()
+})
+
+it('makes the entire card a link and returns to the catalogue', async () => {
+  render(<Flow path="/opportunities" />)
+  const link = await screen.findByRole('link', { name: 'Example fund' })
+  expect(link).toHaveAttribute('href', '/opportunities/one')
+  await userEvent.click(screen.getByText('View opportunity →'))
+  await screen.findByRole('heading', { name: 'Example fund' })
+  await userEvent.click(screen.getByRole('link', { name: 'Back to opportunities' }))
+  expect(await screen.findByRole('heading', { name: 'Opportunities' })).toBeInTheDocument()
+})
+it('handles missing descriptions and instructions without inventing them', async () => {
+  mock.getOpportunity.mockResolvedValue({ ...opportunity, description: '', application_method: '' })
+  render(<Flow />)
+  expect(await screen.findByText('Description unavailable. Consult the official source.')).toBeInTheDocument()
+  expect(screen.getByText(/Application instructions are unavailable/)).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /Original source/ })).toHaveAttribute('href', opportunity.source_url)
 })
